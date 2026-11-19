@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TraySource>$(MSBuildThisFileDirectory)..\..\windows</TraySource>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(TraySource)\BleProtocol.cs" Link="BleProtocol.cs" />
+    <Compile Include="$(TraySource)\MonitorModel.cs" Link="MonitorModel.cs" />
+    <Compile Include="$(TraySource)\NvDdcVolume.cs" Link="NvDdcVolume.cs" />
+    <Compile Include="$(TraySource)\TraySettings.cs" Link="TraySettings.cs" />
+  </ItemGroup>
+</Project>

@@ -17,3 +17,7 @@ xcuserdata/
 /third_party/m1ddc/library/
 *.obj
 /protocol-test.exe
+/windows/bin/
+/windows/obj/
+/tests/windows/bin/
+/tests/windows/obj/

@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度和 3.5 mm 耳机音量。macOS 应用版本为 0.5.1，支持 Apple Silicon 和 macOS 14 或更高版本。Windows 开发者可直接下载本仓库的协议源码和测试。
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 应用版本为 0.5.1，支持 Apple Silicon 和 macOS 14 或更高版本。Windows 应用版本为 0.5.0，支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -35,22 +35,19 @@ open "build/红魔显示器.app"
 - **USB 与 HDMI** 在实测的 Type-C / DP 双机连接中，蓝牙切源时，键鼠的 USB 上行通道也随之切换。HDMI 2 已通过蓝牙切源并确认画面。HDMI 1 画面及两个 HDMI 端口的 DDC 切换尚待实机验证。
 - **状态与回读** 首次使用默认 DDC，之后记住上次选择。切换面板时先显示缓存，再按需连接和补读。连续拖动只提交最新目标，写入后通过独立查询核对结果。回读失败时保留上次确认值，点刷新可重新读取。启动或唤醒后的自动检测只读。
 
-## Windows 下载与移植
+## Windows 快速开始
 
 Windows 上可直接下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
 
-也可以在 PowerShell 中克隆仓库。进入目录后，后续用 `git pull` 获取更新。
+安装 .NET 10 SDK 后，可在 PowerShell 中克隆仓库并启动托盘程序。
 
 ```powershell
 git clone https://github.com/WeeTom/redmagic-monitor-control.git
 cd redmagic-monitor-control
+dotnet run --project .\windows\RedMagicMonitor.csproj -c Release -- --show
 ```
 
-当前版本提供 macOS 桌面应用源码，Windows 移植可以复用以下部分。
-
-- `core/GMProtocol.c` 和 `core/GMProtocol.h` 实现独立的 C 蓝牙协议状态机，负责组帧、超时、重连和切换后确认。设备配置记录了 GATT UUID、端口编号和音量数据包。[型号协议配置](device-profile.json)
-- Windows 的蓝牙传输层需要负责身份核验、订阅通知、收发数据，再把结果交给协议核心。硬件适配说明列出了调用顺序。[蓝牙接入说明](hardware/README.txt)
-- Windows DDC 后端需按本机显卡驱动验证原始 DDC/CI 访问。GM001J 的硬件音量通过厂商 C8 指令写入，标准 VCP 功能码为 `0x62`。macOS 的回包校验和写入实现在原生后端中。[DDC 参考实现](native/DDCNative.m)
+首次使用时按 Windows 说明绑定显示器。源码也可构建成自包含的单文件 EXE。[Windows 构建与配置](windows/README.md) · [型号协议配置](device-profile.json) · [蓝牙接入说明](hardware/README.txt)
 
 使用 Visual Studio 的 Developer PowerShell 和支持 C11 的 MSVC，可单独构建并运行协议测试。
 
