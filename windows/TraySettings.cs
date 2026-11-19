@@ -9,15 +9,17 @@ namespace RedMagicMonitor;
 internal sealed class TraySettings
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    internal static string DirectoryPath { get; private set; } =
+    internal static string DefaultDirectoryPath { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RedMagicMonitor");
+    internal static string DirectoryPath { get; private set; } = DefaultDirectoryPath;
     private static string SettingsPath => Path.Combine(DirectoryPath, "settings.json");
 
     public string LastPage { get; set; } = "Ddc";
     public string? MonitorSerial { get; set; }
     public string? BluetoothAddress { get; set; }
 
-    internal static void SetDataDirectory(string path) => DirectoryPath = Path.GetFullPath(path);
+    internal static void SetDataDirectory(string path) =>
+        DirectoryPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
     internal TransportPage Page
     {

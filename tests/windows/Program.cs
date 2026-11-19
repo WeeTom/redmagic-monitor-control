@@ -81,3 +81,6 @@ await CheckTypeCReturn("DDC open exception falls back to one BLE selection",
     "force BLE", DdcInputStatus.Unavailable, true);
 await CheckTypeCReturn("failed BLE fallback leaves both outcomes unconfirmed", unavailable, bleDisconnected,
     "force BLE", DdcInputStatus.Unavailable, false);
+
+await ShortcutSwitchChecks.RunAsync();
+ShortcutCommandChecks.Run();

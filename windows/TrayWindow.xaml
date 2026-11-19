@@ -152,9 +152,13 @@
       </DockPanel>
 
       <ScrollViewer Grid.Row="3" x:Name="Body" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid VerticalAlignment="Top">
+        <StackPanel VerticalAlignment="Top">
+          <DockPanel Margin="0,0,0,7">
+            <Button x:Name="ExportInputShortcut" DockPanel.Dock="Right" Content="导出快捷方式"
+                    MinHeight="26" Padding="8,2" Click="ChooseShortcutInput"/>
+            <TextBlock Text="输入源" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          </DockPanel>
           <StackPanel x:Name="DdcPage">
-            <TextBlock Text="输入源" FontWeight="SemiBold" Margin="0,0,0,7"/>
             <UniformGrid x:Name="DdcInputs" Columns="4"/>
             <Border Margin="0,13,0,0" Background="{DynamicResource CardBrush}" CornerRadius="10"
                     BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1" Padding="12,4">
@@ -164,7 +168,6 @@
                     ToolTip="将亮度和对比度设为 50" Click="RestoreDefaults"/>
           </StackPanel>
           <StackPanel x:Name="BlePage" Visibility="Collapsed">
-            <TextBlock Text="输入源" FontWeight="SemiBold" Margin="0,0,0,7"/>
             <UniformGrid x:Name="BleInputs" Columns="4"/>
             <TextBlock x:Name="BleInputDetail" TextWrapping="Wrap" FontSize="12" Margin="2,6,2,0"
                        Foreground="{DynamicResource MutedBrush}"/>
@@ -178,7 +181,7 @@
               <StackPanel x:Name="LightOptions"/>
             </Border>
           </StackPanel>
-        </Grid>
+        </StackPanel>
       </ScrollViewer>
 
       <StackPanel Grid.Row="4" Margin="0,11,0,0">

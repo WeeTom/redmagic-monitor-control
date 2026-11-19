@@ -21,6 +21,18 @@ internal sealed class BleTransport(TraySettings settings)
     internal Task<BleSnapshot> ReadAsync() => ReadControlsAsync(inputOnly: false);
     internal Task<BleSnapshot> ReadInputAsync() => ReadControlsAsync(inputOnly: true);
 
+    // A null result is safe to route to DDC: no input SET was submitted.
+    internal async Task<bool?> TrySelectInputAsync(InputSource source)
+    {
+        try { await Serial(Connect); }
+        catch (Exception error) when (TransportError(error))
+        {
+            TrayLog.Write($"快捷方式蓝牙连接不可用。{error.Message}");
+            return null;
+        }
+        return (await SetAsync(BleControl.Input, (byte)source)).Confirmed;
+    }
+
     private Task<BleSnapshot> ReadControlsAsync(bool inputOnly) => Serial(async () =>
     {
         var values = new Dictionary<BleControl, byte>();

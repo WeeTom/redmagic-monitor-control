@@ -11,6 +11,22 @@ internal static class InputSources
     internal static readonly InputSource[] All =
         [InputSource.TypeC, InputSource.DisplayPort, InputSource.Hdmi1, InputSource.Hdmi2];
 
+    internal static string CommandToken(InputSource source) => source switch
+    {
+        InputSource.TypeC => "type-c",
+        InputSource.DisplayPort => "dp",
+        InputSource.Hdmi1 => "hdmi-1",
+        InputSource.Hdmi2 => "hdmi-2",
+        _ => throw new ArgumentOutOfRangeException(nameof(source))
+    };
+
+    internal static InputSource? FromCommandToken(string token)
+    {
+        foreach (var source in All)
+            if (string.Equals(token, CommandToken(source), StringComparison.OrdinalIgnoreCase)) return source;
+        return null;
+    }
+
     internal static string Name(InputSource source) => source switch
     {
         InputSource.TypeC => "Type-C",

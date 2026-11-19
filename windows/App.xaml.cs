@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
 using Forms = System.Windows.Forms;
@@ -22,6 +23,8 @@ public partial class App : Application
     private TrayWindow? _panel;
     private HwndSource? _hwnd;
     private bool _quitting;
+    private readonly CancellationTokenSource _shortcutStop = new();
+    private readonly SemaphoreSlim _shortcutQueue = new(1, 1);
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -29,6 +32,19 @@ public partial class App : Application
         try
         {
             var args = e.Args;
+            if (args.Contains("--switch-input", StringComparer.OrdinalIgnoreCase))
+            {
+                if (!ShortcutChannel.TryParse(args, out var target, out var directory))
+                {
+                    TrayLog.Write("快捷方式参数无效。用法：--switch-input type-c|dp|hdmi-1|hdmi-2");
+                    Shutdown(2);
+                    return;
+                }
+                if (directory != null) TraySettings.SetDataDirectory(directory);
+                bool switched = await new ShortcutChannel().RequestAsync(target);
+                Shutdown(switched ? 0 : 1);
+                return;
+            }
             int home = Array.IndexOf(args, "--data-dir");
             if (home >= 0)
             {
@@ -60,8 +76,9 @@ public partial class App : Application
                 return;
             }
 
-            _openMessage = RegisterWindowMessage("RedMagicMonitor.OpenPanel.050");
-            _instance = new Mutex(true, @"Local\RedMagicMonitor.Tray.050", out _ownsInstance);
+            var shortcuts = new ShortcutChannel();
+            _openMessage = RegisterWindowMessage(shortcuts.OpenMessageName);
+            _instance = new Mutex(true, shortcuts.MutexName, out _ownsInstance);
             if (!_ownsInstance)
             {
                 if (!args.Contains("--background")) PostMessage(0xffff, _openMessage, 0, 0);
@@ -84,7 +101,9 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(new Action(() => _panel.TogglePanel()));
             };
             _panel.QuitRequested += Quit;
-            TrayLog.Write("红魔显示器 0.5.1 托盘已启动。");
+            _ = shortcuts.ListenAsync(source => Dispatcher.InvokeAsync(
+                () => SwitchFromShortcutAsync(source)).Task.Unwrap(), _shortcutStop.Token);
+            TrayLog.Write($"红魔显示器 {typeof(App).Assembly.GetName().Version?.ToString(3)} 托盘已启动。");
             if (args.Contains("--show")) _panel.ShowPanel();
         }
         catch (Exception error)
@@ -92,6 +111,26 @@ public partial class App : Application
             TrayLog.Write(error.ToString());
             Shutdown(1);
         }
+    }
+
+    private async Task<bool> SwitchFromShortcutAsync(InputSource source)
+    {
+        await _shortcutQueue.WaitAsync();
+        try
+        {
+            if (_quitting || _panel == null) return false;
+            var result = await _panel.SwitchShortcutAsync(source);
+            TrayLog.Write($"快捷方式 {InputSources.Name(source)}。{result.Message}");
+            if (!result.Confirmed && !_panel.IsVisible && !_quitting)
+                _tray?.ShowBalloonTip(3500, $"切换到 {InputSources.Name(source)} 未确认", result.Message, Forms.ToolTipIcon.Warning);
+            return result.Confirmed;
+        }
+        catch (Exception error)
+        {
+            TrayLog.Write($"快捷方式 {InputSources.Name(source)}。{error.Message}");
+            return false;
+        }
+        finally { _shortcutQueue.Release(); }
     }
 
     private nint WindowMessage(nint hwnd, int message, nint wparam, nint lparam, ref bool handled)
@@ -147,18 +186,22 @@ public partial class App : Application
     {
         if (_quitting) return;
         _quitting = true;
+        _shortcutStop.Cancel();
         if (_tray is not null) _tray.Visible = false;
         if (_panel is not null)
         {
             _panel.Hide();
+            await _shortcutQueue.WaitAsync();
             try { await _panel.PrepareExitAsync(); }
             catch (Exception error) { TrayLog.Write($"退出时释放蓝牙。{error.Message}"); }
+            finally { _shortcutQueue.Release(); }
         }
         Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _shortcutStop.Cancel();
         _hwnd?.RemoveHook(WindowMessage);
         _tray?.Dispose();
         _icon?.Dispose();
