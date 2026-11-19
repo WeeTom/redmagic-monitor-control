@@ -13,10 +13,10 @@ public partial class TrayWindow
         while (!_exiting && (_changingInput || _ddcBusy || _bleBusy || _draining || _queued.Count != 0 || _volumeDrag.HasValue))
         {
             if (Stopwatch.GetElapsedTime(start) >= TimeSpan.FromSeconds(12))
-                return new(false, null, "显示器正在处理其他操作，请稍后重试。");
+                return new(false, null, L.T("显示器正在处理其他操作，请稍后重试。"));
             await Task.Delay(100);
         }
-        if (_exiting) return new(false, null, "托盘正在退出。");
+        if (_exiting) return new(false, null, L.T("托盘正在退出。"));
 
         BeginInputChange();
         int generation = _sourceGeneration;
@@ -28,7 +28,7 @@ public partial class TrayWindow
             return Current() ? observed : null;
         }
         _ddcBusy = _bleBusy = true;
-        _ddcStatus = _bleStatus = $"快捷方式正在切换到 {InputSources.Name(source)}…";
+        _ddcStatus = _bleStatus = L.T("快捷方式正在切换到 {0}…", InputSources.Name(source));
         Render();
         try
         {

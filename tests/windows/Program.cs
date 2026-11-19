@@ -13,6 +13,8 @@ static void Reject(string bytes)
     throw new Exception("Accepted invalid volume response " + bytes);
 }
 
+LocalizationChecks.Run();
+
 Expect(InputSources.All.Select(InputSources.DdcCode).SequenceEqual(Hex("07 08 05 06")), "DDC source mapping");
 Expect(InputSources.All.Select(source => (byte)source).SequenceEqual(Hex("01 02 03 04")), "BLE source mapping");
 var input = BleProtocol.Specs[BleControl.Input];
@@ -99,4 +101,5 @@ foreach (var target in InputSources.All)
 }
 
 await ShortcutSwitchChecks.RunAsync();
-ShortcutCommandChecks.Run();
+if (OperatingSystem.IsWindows()) ShortcutCommandChecks.Run();
+else Console.WriteLine("SKIP shell-link COM tests require Windows");

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -7,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
+using Windows.System.UserProfile;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
 
@@ -31,12 +33,14 @@ public partial class App : Application
         base.OnStartup(e);
         try
         {
+            L.UseSystemLanguages(GlobalizationPreferences.Languages
+                .DefaultIfEmpty(CultureInfo.CurrentUICulture.Name));
             var args = e.Args;
             if (args.Contains("--switch-input", StringComparer.OrdinalIgnoreCase))
             {
                 if (!ShortcutChannel.TryParse(args, out var target, out var directory))
                 {
-                    TrayLog.Write("快捷方式参数无效。用法：--switch-input type-c|dp|hdmi-1|hdmi-2");
+                    TrayLog.Write(L.T("快捷方式参数无效。用法：--switch-input type-c|dp|hdmi-1|hdmi-2"));
                     Shutdown(2);
                     return;
                 }
@@ -48,7 +52,7 @@ public partial class App : Application
             int home = Array.IndexOf(args, "--data-dir");
             if (home >= 0)
             {
-                if (home + 1 == args.Length) throw new ArgumentException("--data-dir requires a path.");
+                if (home + 1 == args.Length) throw new ArgumentException(L.T("--data-dir 需要提供目录路径。"));
                 TraySettings.SetDataDirectory(args[home + 1]);
             }
             var settings = TraySettings.Load();
@@ -92,7 +96,7 @@ public partial class App : Application
             _hwnd = HwndSource.FromHwnd(handle);
             _hwnd?.AddHook(WindowMessage);
 
-            _tray = new Forms.NotifyIcon { Text = "红魔显示器" };
+            _tray = new Forms.NotifyIcon { Text = L.T("红魔显示器") };
             UpdateTrayIcon();
             _tray.Visible = true;
             _tray.MouseClick += (_, click) =>
@@ -103,7 +107,7 @@ public partial class App : Application
             _panel.QuitRequested += Quit;
             _ = shortcuts.ListenAsync(source => Dispatcher.InvokeAsync(
                 () => SwitchFromShortcutAsync(source)).Task.Unwrap(), _shortcutStop.Token);
-            TrayLog.Write($"红魔显示器 {typeof(App).Assembly.GetName().Version?.ToString(3)} 托盘已启动。");
+            TrayLog.Write(L.T("红魔显示器 {0} 托盘已启动。", typeof(App).Assembly.GetName().Version?.ToString(3)));
             if (args.Contains("--show")) _panel.ShowPanel();
         }
         catch (Exception error)
@@ -120,14 +124,14 @@ public partial class App : Application
         {
             if (_quitting || _panel == null) return false;
             var result = await _panel.SwitchShortcutAsync(source);
-            TrayLog.Write($"快捷方式 {InputSources.Name(source)}。{result.Message}");
+            TrayLog.Write(L.T("快捷方式 {0}。{1}", InputSources.Name(source), result.Message));
             if (!result.Confirmed && !_panel.IsVisible && !_quitting)
-                _tray?.ShowBalloonTip(3500, $"切换到 {InputSources.Name(source)} 未确认", result.Message, Forms.ToolTipIcon.Warning);
+                _tray?.ShowBalloonTip(3500, L.T("切换到 {0} 未确认", InputSources.Name(source)), result.Message, Forms.ToolTipIcon.Warning);
             return result.Confirmed;
         }
         catch (Exception error)
         {
-            TrayLog.Write($"快捷方式 {InputSources.Name(source)}。{error.Message}");
+            TrayLog.Write(L.T("快捷方式 {0}。{1}", InputSources.Name(source), error.Message));
             return false;
         }
         finally { _shortcutQueue.Release(); }
@@ -193,7 +197,7 @@ public partial class App : Application
             _panel.Hide();
             await _shortcutQueue.WaitAsync();
             try { await _panel.PrepareExitAsync(); }
-            catch (Exception error) { TrayLog.Write($"退出时释放蓝牙。{error.Message}"); }
+            catch (Exception error) { TrayLog.Write(L.T("退出时释放蓝牙。{0}", error.Message)); }
             finally { _shortcutQueue.Release(); }
         }
         Shutdown();

@@ -18,7 +18,7 @@ internal static class ShortcutInputSwitcher
         Action<string> log)
     {
         var ddc = await selectVideo(source);
-        log($"快捷方式 DDC {InputSources.Name(source)}。{ddc.Message}");
+        log(L.T("快捷方式 DDC {0}。{1}", InputSources.Name(source), ddc.Message));
         InputSource? active = ddc.Value;
         bool checkedAfterWrite = false;
         async Task<InputSource?> ReadActive()
@@ -32,7 +32,7 @@ internal static class ShortcutInputSwitcher
             }
             catch (Exception error)
             {
-                log($"核对活动输入。{error.Message}");
+                log(L.T("核对活动输入。{0}", error.Message));
                 return null;
             }
         }
@@ -48,7 +48,7 @@ internal static class ShortcutInputSwitcher
         }
 
         bool menuConfirmed = false;
-        string menu = "蓝牙未配置";
+        string menu = L.T("蓝牙未配置");
         if (bluetoothConfigured)
         {
             bool fallbackMayHaveSent = false;
@@ -71,14 +71,14 @@ internal static class ShortcutInputSwitcher
                 menuConfirmed = confirmation == true;
                 menu = confirmation switch
                 {
-                    true => "蓝牙菜单已确认",
-                    false => "蓝牙菜单未确认",
-                    null => "蓝牙未连接，未发送蓝牙切源指令"
+                    true => L.T("蓝牙菜单已确认"),
+                    false => L.T("蓝牙菜单未确认"),
+                    null => L.T("蓝牙未连接，未发送蓝牙切源指令")
                 };
             }
             catch (Exception error)
             {
-                menu = $"蓝牙菜单未确认。{error.Message}";
+                menu = L.T("蓝牙菜单未确认。{0}", error.Message);
                 log(menu);
             }
             if (fallbackMayHaveSent || supplementFromPrior || (ddc.Status == DdcInputStatus.Unconfirmed && !checkedAfterWrite))
@@ -87,17 +87,17 @@ internal static class ShortcutInputSwitcher
                 if (fallbackMayHaveSent || supplementFromPrior) active = null;
                 await ReadActive();
             }
-            if (fallbackMayHaveSent) menu = $"已尝试蓝牙切源 · {menu}";
-            else if (supplementFromPrior) menu = $"已尝试蓝牙补切 · {menu}";
+            if (fallbackMayHaveSent) menu = L.T("已尝试蓝牙切源 · {0}", menu);
+            else if (supplementFromPrior) menu = L.T("已尝试蓝牙补切 · {0}", menu);
         }
 
         string write = ddc.Status switch
         {
-            DdcInputStatus.Confirmed => "DDC 写入已确认",
-            DdcInputStatus.Unconfirmed => "已尝试 DDC 写入",
-            _ => "DDC 未发送"
+            DdcInputStatus.Confirmed => L.T("DDC 写入已确认"),
+            DdcInputStatus.Unconfirmed => L.T("已尝试 DDC 写入"),
+            _ => L.T("DDC 未发送")
         };
-        string video = active.HasValue ? $"DDC 活动输入 {InputSources.Name(active.Value)}" : "视频源未确认";
+        string video = active.HasValue ? L.T("DDC 活动输入 {0}", InputSources.Name(active.Value)) : L.T("视频源未确认");
         return new(ddc.Status, active, menuConfirmed, $"{write} · {video} · {menu}");
     }
 }

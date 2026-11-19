@@ -7,6 +7,8 @@
     <TraySource>$(MSBuildThisFileDirectory)..\..\windows</TraySource>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="$(TraySource)\Locales\*.json" LogicalName="Locales.%(Filename).json" WithCulture="false" />
+    <Compile Include="$(TraySource)\Localization.cs" Link="Localization.cs" />
     <Compile Include="$(TraySource)\BleProtocol.cs" Link="BleProtocol.cs" />
     <Compile Include="$(TraySource)\MonitorModel.cs" Link="MonitorModel.cs" />
     <Compile Include="$(TraySource)\TypeCReturn.cs" Link="TypeCReturn.cs" />

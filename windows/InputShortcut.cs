@@ -10,16 +10,16 @@ internal static class InputShortcut
     {
         string path = Path.GetFullPath(destination);
         if (!string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("快捷方式文件名需要以 .lnk 结尾。");
+            throw new ArgumentException(L.T("快捷方式文件名需要以 .lnk 结尾。"));
         if (!Path.IsPathFullyQualified(executable) || !File.Exists(executable))
-            throw new FileNotFoundException("找不到快捷方式的目标程序。", executable);
+            throw new FileNotFoundException(L.T("找不到快捷方式的目标程序。"), executable);
 
         string arguments = $"--switch-input {InputSources.CommandToken(source)}";
         string directory = TraySettings.DirectoryPath;
         if (!string.Equals(directory, TraySettings.DefaultDirectoryPath, StringComparison.OrdinalIgnoreCase))
         {
             // Windows doubles trailing backslashes before a closing argument quote.
-            if (directory.Contains('"')) throw new ArgumentException("配置目录路径包含无效的引号。");
+            if (directory.Contains('"')) throw new ArgumentException(L.T("配置目录路径包含无效的引号。"));
             int trailingSlashes = directory.Length - directory.TrimEnd('\\').Length;
             arguments += $" --data-dir \"{directory}{new string('\\', trailingSlashes)}\"";
         }
@@ -27,7 +27,7 @@ internal static class InputShortcut
         string temporary = Path.Combine(Path.GetDirectoryName(path)!, $".{Guid.NewGuid():N}.lnk");
         try
         {
-            WriteShellLink(temporary, executable, arguments, $"切换红魔显示器到 {InputSources.Name(source)}");
+            WriteShellLink(temporary, executable, arguments, L.T("切换红魔显示器到 {0}", InputSources.Name(source)));
             File.Move(temporary, path, overwrite);
         }
         finally

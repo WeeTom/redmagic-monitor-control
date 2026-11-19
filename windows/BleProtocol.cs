@@ -27,17 +27,17 @@ internal static class BleProtocol
 {
     internal static readonly IReadOnlyDictionary<BleControl, BleSpec> Specs = new Dictionary<BleControl, BleSpec>
     {
-        [BleControl.Input] = new(0xdd, 0xcd, 0xed, 1, "输入源",
+        [BleControl.Input] = new(0xdd, 0xcd, 0xed, 1, L.T("输入源"),
             InputSources.All.Select(source => new ByteChoice((byte)source, InputSources.Name(source))).ToArray()),
-        [BleControl.Picture] = new(0xdc, 0xcc, 0xec, 1, "图像模式",
-            Choices(0, "标准", "电影", "FPS", "MOBA", "护眼", "sRGB", "Adobe RGB", "DCI-P3")),
-        [BleControl.Hdr] = new(0xdc, 0xcc, 0xec, 6, "HDR", Choices(1, "开", "关")),
-        [BleControl.LightPower] = Light(1, "灯光", Choices(1, "关", "开")),
-        [BleControl.LightColor] = Light(2, "颜色", Choices(1, "红", "黄", "绿", "青", "蓝", "紫", "多彩")),
-        [BleControl.LightBrightness] = Light(3, "灯光亮度", Choices(1, "明亮", "适中", "柔和")),
-        [BleControl.LightEffect] = Light(4, "灯效", Choices(1, "常亮", "呼吸", "闪烁", "单色流动", "星光", "多彩", "多彩流动")),
-        [BleControl.FrontColor] = Light(5, "前灯色", Choices(1, "红", "黄", "绿", "青", "蓝", "紫")),
-        [BleControl.BackColor] = Light(6, "背灯色", Choices(1, "红", "黄", "绿", "青", "蓝", "紫"))
+        [BleControl.Picture] = new(0xdc, 0xcc, 0xec, 1, L.T("图像模式"),
+            Choices(0, L.T("标准"), L.T("电影"), "FPS", "MOBA", L.T("护眼"), "sRGB", "Adobe RGB", "DCI-P3")),
+        [BleControl.Hdr] = new(0xdc, 0xcc, 0xec, 6, "HDR", Choices(1, L.T("开"), L.T("关"))),
+        [BleControl.LightPower] = Light(1, L.T("灯光"), Choices(1, L.T("关"), L.T("开"))),
+        [BleControl.LightColor] = Light(2, L.T("颜色"), Choices(1, L.T("红"), L.T("黄"), L.T("绿"), L.T("青"), L.T("蓝"), L.T("紫"), L.T("多彩"))),
+        [BleControl.LightBrightness] = Light(3, L.T("灯光亮度"), Choices(1, L.T("明亮"), L.T("适中"), L.T("柔和"))),
+        [BleControl.LightEffect] = Light(4, L.T("灯效"), Choices(1, L.T("常亮"), L.T("呼吸"), L.T("闪烁"), L.T("单色流动"), L.T("星光"), L.T("多彩"), L.T("多彩流动"))),
+        [BleControl.FrontColor] = Light(5, L.T("前灯色"), Choices(1, L.T("红"), L.T("黄"), L.T("绿"), L.T("青"), L.T("蓝"), L.T("紫"))),
+        [BleControl.BackColor] = Light(6, L.T("背灯色"), Choices(1, L.T("红"), L.T("黄"), L.T("绿"), L.T("青"), L.T("蓝"), L.T("紫")))
     };
 
     private static BleSpec Light(byte group, string name, ByteChoice[] options) => new(0xde, 0xce, 0xee, group, name, options);

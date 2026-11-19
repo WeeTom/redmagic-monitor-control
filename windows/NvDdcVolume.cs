@@ -16,14 +16,14 @@ internal sealed class NvDdcVolume
     internal NvDdcVolume(string gdiName)
     {
         var api = Api.Value;
-        Check(api.Associate(gdiName, out var display), "定位 NVIDIA 显示输出");
-        Check(api.Output(display, out _mask), "获取 NVIDIA 输出掩码");
+        Check(api.Associate(gdiName, out var display), L.T("定位 NVIDIA 显示输出"));
+        Check(api.Output(display, out _mask), L.T("获取 NVIDIA 输出掩码"));
         if (_mask == 0 || (_mask & (_mask - 1)) != 0)
-            throw new IOException("NVIDIA 输出无法唯一定位。");
+            throw new IOException(L.T("NVIDIA 输出无法唯一定位。"));
         var gpus = new nint[64];
-        Check(api.PhysicalGpu(display, gpus, out uint count), "定位实体 GPU");
+        Check(api.PhysicalGpu(display, gpus, out uint count), L.T("定位实体 GPU"));
         if (count != 1 || gpus[0] == 0)
-            throw new IOException("NVIDIA 实体 GPU 无法唯一定位。");
+            throw new IOException(L.T("NVIDIA 实体 GPU 无法唯一定位。"));
         _gpu = gpus[0];
     }
 
@@ -36,14 +36,14 @@ internal sealed class NvDdcVolume
         byte[] response = new byte[11];
         foreach (int delay in new[] { 60, 80, 45, 70, 90, 55 })
         {
-            Transfer(Api.Value.Send, request, $"发送 VCP 0x{code:X2} GET", trace: true);
+            Transfer(Api.Value.Send, request, L.T("发送 VCP 0x{0:X2} GET", code), trace: true);
             Thread.Sleep(delay);
             Array.Clear(response);
-            Transfer(Api.Value.Receive, response, $"VCP 0x{code:X2} GET 回包", trace: true);
+            Transfer(Api.Value.Receive, response, L.T("VCP 0x{0:X2} GET 回包", code), trace: true);
             if (TryParseReply(response, code, vendor: false, out var reading)) return reading;
             Thread.Sleep(32);
         }
-        throw new IOException($"VCP 0x{code:X2} 未收到匹配的有效回包。");
+        throw new IOException(L.T("VCP 0x{0:X2} 未收到匹配的有效回包。", code));
     }
 
     internal int Read()
@@ -51,31 +51,31 @@ internal sealed class NvDdcVolume
         try { return (int)ReadStandard(0x62).Value; }
         catch (IOException error) { TrayLog.Write(error.Message); }
 
-        try { return ReadVolume([0x51, 0x83, 0xc6, 0, 0x62, 0x18], 20, 100, "厂商"); }
+        try { return ReadVolume([0x51, 0x83, 0xc6, 0, 0x62, 0x18], 20, 100); }
         catch (IOException error) { TrayLog.Write(error.Message); }
         Thread.Sleep(75);
-        return ReadVolume([0x51, 0x83, 0xc6, 0, 0x62, 0x18], 20, 100, "厂商");
+        return ReadVolume([0x51, 0x83, 0xc6, 0, 0x62, 0x18], 20, 100);
     }
 
-    private int ReadVolume(byte[] request, int repeatGapMs, int responseDelayMs, string kind)
+    private int ReadVolume(byte[] request, int repeatGapMs, int responseDelayMs)
     {
-        string description = $"NVAPI {kind}音量 GET";
-        Transfer(Api.Value.Send, request, description + " 请求", trace: true);
+        string description = L.T("NVAPI 厂商音量 GET");
+        Transfer(Api.Value.Send, request, L.T("{0} 请求", description), trace: true);
         Thread.Sleep(repeatGapMs);
-        Transfer(Api.Value.Send, request, description + " 第二次请求", trace: true);
+        Transfer(Api.Value.Send, request, L.T("{0} 第二次请求", description), trace: true);
         Thread.Sleep(responseDelayMs);
         byte[] response = new byte[12];
-        Transfer(Api.Value.Receive, response, description + " 回包", trace: true);
+        Transfer(Api.Value.Receive, response, L.T("{0} 回包", description), trace: true);
         if (TryParseReply(response, 0x62, vendor: request[2] == 0xc6, out var reading)) return (int)reading.Value;
-        throw new IOException($"耳机音量 GET 回包无效（{Convert.ToHexString(response)}）。");
+        throw new IOException(L.T("耳机音量 GET 回包无效（{0}）。", Convert.ToHexString(response)));
     }
 
     internal void Write(int percent)
     {
         byte[] frame = VolumeFrame(percent);
-        Transfer(Api.Value.Send, frame, "发送耳机音量 C8");
+        Transfer(Api.Value.Send, frame, L.T("发送耳机音量 C8"));
         Thread.Sleep(50);
-        Transfer(Api.Value.Send, frame, "再次发送耳机音量 C8");
+        Transfer(Api.Value.Send, frame, L.T("再次发送耳机音量 C8"));
     }
 
     internal static byte[] VolumeFrame(int percent)
@@ -90,7 +90,7 @@ internal sealed class NvDdcVolume
     {
         if (TryParseReply(reply, 0x62, vendor: false, out var reading) ||
             TryParseReply(reply, 0x62, vendor: true, out reading)) return (int)reading.Value;
-        throw new IOException($"耳机音量 GET 回包无效（{Convert.ToHexString(reply)}）。");
+        throw new IOException(L.T("耳机音量 GET 回包无效（{0}）。", Convert.ToHexString(reply)));
     }
 
     internal static bool TryParseReply(ReadOnlySpan<byte> reply, byte code, bool vendor,
@@ -139,7 +139,7 @@ internal sealed class NvDdcVolume
             };
             int status = method(_gpu, ref info);
             if (trace)
-                TrayLog.Write($"{operation}。状态 {status}，请求长度 {bytes.Length}，驱动长度 {info.Size}，数据 {Convert.ToHexString(bytes)}");
+                TrayLog.Write(L.T("{0}。状态 {1}，请求长度 {2}，驱动长度 {3}，数据 {4}", operation, status, bytes.Length, info.Size, Convert.ToHexString(bytes)));
             Check(status, operation);
         }
         finally { pin.Free(); }
@@ -147,7 +147,7 @@ internal sealed class NvDdcVolume
 
     private static void Check(int status, string operation)
     {
-        if (status != 0) throw new IOException($"{operation}失败（NVAPI {status}）。");
+        if (status != 0) throw new IOException(L.T("{0}失败（NVAPI {1}）。", operation, status));
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -186,7 +186,7 @@ internal sealed class NvDdcVolume
             {
                 var entry = NativeLibrary.GetExport(library, "nvapi_QueryInterface");
                 var query = Marshal.GetDelegateForFunctionPointer<QueryInterface>(entry);
-                Check(Resolve<Initialize>(0x0150e828)(), "初始化 NVAPI");
+                Check(Resolve<Initialize>(0x0150e828)(), L.T("初始化 NVAPI"));
                 Associate = Resolve<AssociateDisplay>(0x35c29134);
                 Output = Resolve<GetOutput>(0xd995937e);
                 PhysicalGpu = Resolve<GetGpu>(0x34ef9506);
@@ -196,7 +196,7 @@ internal sealed class NvDdcVolume
                 T Resolve<T>(uint id) where T : Delegate
                 {
                     var address = query(id);
-                    if (address == 0) throw new IOException($"NVAPI 接口 0x{id:X8} 不可用。");
+                    if (address == 0) throw new IOException(L.T("NVAPI 接口 0x{0:X8} 不可用。", id));
                     return Marshal.GetDelegateForFunctionPointer<T>(address);
                 }
             }

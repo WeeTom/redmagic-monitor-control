@@ -44,9 +44,9 @@ public partial class TrayWindow : Window
     private bool _ddcSeen, _ddcTarget, _ddcBusy, _draining;
     private bool _bleSeen, _bleConnected, _bleBusy;
     private bool _rendering, _dragging, _userPositioned, _exiting;
-    private string _ddcStatus = "等待读取显示器";
-    private string _bleStatus = "等待读取蓝牙";
-    private string _volumeStatus = "等待读取耳机音量";
+    private string _ddcStatus = L.T("等待读取显示器");
+    private string _bleStatus = L.T("等待读取蓝牙");
+    private string _volumeStatus = L.T("等待读取耳机音量");
 
     private sealed record LevelRow(Slider Slider, TextBlock Number, Button Less, Button More, TextBlock Note)
     {
@@ -55,7 +55,10 @@ public partial class TrayWindow : Window
     }
 
     private sealed record OptionRow(Grid Row, Button Button);
-    private sealed record DonationMethod(string Name, string Detail, string Accent, string ImageUri);
+    private sealed record DonationMethod(string Name, string Detail, string Accent, string ImageUri)
+    {
+        public string AccessibilityName => L.T("{0} 收款二维码", Name);
+    }
 
     private sealed class InputReading
     {
@@ -73,9 +76,9 @@ public partial class TrayWindow : Window
 
         internal string Describe(string label)
         {
-            if (Last is not InputSource source) return $"{label}待确认";
+            if (Last is not InputSource source) return L.T("{0}待确认", label);
             string value = InputSources.Name(source);
-            return Fresh ? $"{label} {value}" : $"上次{label} {value}（{_readAt:HH:mm:ss}）";
+            return Fresh ? $"{label} {value}" : L.T("上次{0} {1}（{2:T}）", label, value, _readAt);
         }
     }
 
@@ -84,6 +87,7 @@ public partial class TrayWindow : Window
     internal TrayWindow(TraySettings settings)
     {
         InitializeComponent();
+        Language = System.Windows.Markup.XmlLanguage.GetLanguage(L.Language);
         _settings = settings;
         _ddc = new(settings);
         _ble = new(settings);
@@ -95,13 +99,13 @@ public partial class TrayWindow : Window
 
         AddSources(DdcInputs, _ddcSources, source => SetInput(source));
         AddSources(BleInputs, _bleSources, source => SetBluetooth(BleControl.Input, (byte)source));
-        AddLevel(DdcControl.Brightness, "亮度");
-        AddLevel(DdcControl.Contrast, "对比度");
-        AddLevel(DdcControl.Volume, "耳机音量");
+        AddLevel(DdcControl.Brightness, L.T("亮度"));
+        AddLevel(DdcControl.Contrast, L.T("对比度"));
+        AddLevel(DdcControl.Volume, L.T("耳机音量"));
         DonationCards.ItemsSource = new DonationMethod[] {
             new("Venmo", "@weetom", "#2879C6", "pack://application:,,,/Donation/venmo.png"),
-            new("支付宝", "¥6.66", "#1677FF", "pack://application:,,,/Donation/alipay.png"),
-            new("微信支付", "¥6.66", "#07AD61", "pack://application:,,,/Donation/wechat-pay.png")
+            new(L.T("支付宝"), L.T("¥{0:N2}", 6.66m), "#1677FF", "pack://application:,,,/Donation/alipay.png"),
+            new(L.T("微信支付"), L.T("¥{0:N2}", 6.66m), "#07AD61", "pack://application:,,,/Donation/wechat-pay.png")
         };
         foreach (var (control, spec) in BleProtocol.Specs)
         {
@@ -132,7 +136,7 @@ public partial class TrayWindow : Window
         if (_exiting) return;
         FitToWorkArea();
         try { Startup.IsChecked = LoginStartup.Enabled(); }
-        catch (Exception error) { TrayLog.Write($"读取登录启动设置。{error.Message}"); }
+        catch (Exception error) { TrayLog.Write(L.T("读取登录启动设置。{0}", error.Message)); }
         Show();
         Activate();
         RequestMissingValues();
@@ -206,7 +210,7 @@ public partial class TrayWindow : Window
             {
                 _settings.Page = page;
                 try { _settings.Save(); }
-                catch (Exception error) { TrayLog.Write($"保存当前面板。{error.Message}"); }
+                catch (Exception error) { TrayLog.Write(L.T("保存当前面板。{0}", error.Message)); }
             }
             ApplyPage();
         }
@@ -267,8 +271,8 @@ public partial class TrayWindow : Window
 
         var less = new Button { Content = "−", MinHeight = 26, Width = 28, Padding = new Thickness(0) };
         var more = new Button { Content = "+", MinHeight = 26, Width = 28, Padding = new Thickness(0) };
-        AutomationProperties.SetName(less, $"{label}减一");
-        AutomationProperties.SetName(more, $"{label}加一");
+        AutomationProperties.SetName(less, L.T("{0}减一", label));
+        AutomationProperties.SetName(more, L.T("{0}加一", label));
         var slider = new Slider
         {
             Style = (Style)FindResource("LevelSlider"),
@@ -344,7 +348,7 @@ public partial class TrayWindow : Window
         var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
         row.ColumnDefinitions.Add(new ColumnDefinition());
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Children.Add(new TextBlock { Text = spec.Name, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = spec.Name, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
         Grid.SetColumn(button, 1);
         row.Children.Add(button);
         parent.Children.Add(row);
@@ -357,7 +361,7 @@ public partial class TrayWindow : Window
         _ddcBusy = true;
         int generation = _sourceGeneration;
         int inputRequest = ++_activeReadRequest;
-        _ddcStatus = "正在读取显示器…";
+        _ddcStatus = L.T("正在读取显示器…");
         Render();
         try
         {
@@ -391,7 +395,7 @@ public partial class TrayWindow : Window
         if (_ddcBusy || _draining || _queued.Count != 0 || !_ddcTarget || _exiting || _changingInput) return;
         BeginInputChange();
         _ddcBusy = true;
-        _ddcStatus = $"正在切换到 {InputSources.Name(source)}…";
+        _ddcStatus = L.T("正在切换到 {0}…", InputSources.Name(source));
         Render();
         try
         {
@@ -401,7 +405,7 @@ public partial class TrayWindow : Window
             {
                 _ddcInput = result.Value;
                 _activeInput.Observe(result.Value);
-                _ddcStatus = "视频已确认，正在核对菜单…";
+                _ddcStatus = L.T("视频已确认，正在核对菜单…");
                 Render();
                 int generation = _sourceGeneration;
                 bool aligned = false;
@@ -412,7 +416,7 @@ public partial class TrayWindow : Window
                         aligned = await _ble.AlignInputAsync(source, async () =>
                             await CheckActiveInput(generation) == source);
                     }
-                    catch (Exception error) { TrayLog.Write($"核对菜单输入。{error.Message}"); }
+                    catch (Exception error) { TrayLog.Write(L.T("核对菜单输入。{0}", error.Message)); }
                     _bleConnected = _ble.HasConnection;
                 }
                 if (aligned)
@@ -420,9 +424,9 @@ public partial class TrayWindow : Window
                     _bluetoothInput.Observe(source);
                     _bleValues[BleControl.Input] = (byte)source;
                 }
-                _ddcStatus = aligned ? "视频已确认，蓝牙菜单值已确认" : "视频已确认，菜单未确认";
+                _ddcStatus = aligned ? L.T("视频已确认，蓝牙菜单值已确认") : L.T("视频已确认，菜单未确认");
             }
-            TrayLog.Write($"DDC 输入源 {InputSources.Name(source)}。{_ddcStatus}");
+            TrayLog.Write(L.T("DDC 输入源 {0}。{1}", InputSources.Name(source), _ddcStatus));
         }
         catch (Exception error) { RecordDdcError(error); }
         finally
@@ -482,7 +486,7 @@ public partial class TrayWindow : Window
                     continue;
                 }
                 _inFlight = pending;
-                _ddcStatus = $"正在确认{LevelLabel(pending.Key)}…";
+                _ddcStatus = L.T("正在确认{0}…", LevelLabel(pending.Key));
                 Render();
                 try
                 {
@@ -494,21 +498,21 @@ public partial class TrayWindow : Window
                     }
                     else
                     {
-                        failures[pending.Key] = $"{LevelLabel(pending.Key)}回读未确认";
+                        failures[pending.Key] = L.T("{0}回读未确认", LevelLabel(pending.Key));
                         readAfterFailure = true;
                     }
                     _ddcStatus = result.Message;
-                    TrayLog.Write($"DDC {LevelLabel(pending.Key)}。{result.Message}");
+                    TrayLog.Write(L.T("DDC {0}。{1}", LevelLabel(pending.Key), result.Message));
                 }
                 catch (Exception error)
                 {
-                    failures[pending.Key] = $"{LevelLabel(pending.Key)}调节未确认";
+                    failures[pending.Key] = L.T("{0}调节未确认", LevelLabel(pending.Key));
                     readAfterFailure = true;
                     RecordDdcError(error);
                     if (pending.Key == DdcControl.Volume)
                     {
                         row.Writable = false;
-                        _volumeStatus = "耳机音量回读失败";
+                        _volumeStatus = L.T("耳机音量回读失败");
                     }
                 }
                 finally { _inFlight = null; Render(); }
@@ -526,7 +530,7 @@ public partial class TrayWindow : Window
 
     private static string LevelLabel(DdcControl control) => control switch
     {
-        DdcControl.Brightness => "亮度", DdcControl.Contrast => "对比度", _ => "耳机音量"
+        DdcControl.Brightness => L.T("亮度"), DdcControl.Contrast => L.T("对比度"), _ => L.T("耳机音量")
     };
 
     private void RecordDdcError(Exception error)
@@ -549,7 +553,7 @@ public partial class TrayWindow : Window
         _activeInput.Observe(null);
         _bluetoothInput.Observe(null);
         _bleBusy = true;
-        _bleStatus = "正在读取蓝牙…";
+        _bleStatus = L.T("正在读取蓝牙…");
         Render();
         try
         {
@@ -584,7 +588,7 @@ public partial class TrayWindow : Window
         int request = ++_activeReadRequest;
         InputSource? source = null;
         try { source = await _ddc.ReadInputAsync(); }
-        catch (Exception error) { TrayLog.Write($"核对活动输入。{error.Message}"); }
+        catch (Exception error) { TrayLog.Write(L.T("核对活动输入。{0}", error.Message)); }
         if (_exiting || generation != _sourceGeneration || request != _activeReadRequest) return null;
         _activeInput.Observe(source);
         if (source.HasValue) _ddcInput = source;
@@ -600,7 +604,7 @@ public partial class TrayWindow : Window
         if (sourceChange) BeginInputChange();
         _bleBusy = true;
         var spec = BleProtocol.Specs[control];
-        _bleStatus = returnToTypeC ? "正在通过 DDC 切换到 Type-C…" : $"正在确认{spec.Name}…";
+        _bleStatus = returnToTypeC ? L.T("正在通过 DDC 切换到 Type-C…") : L.T("正在确认{0}…", spec.Name);
         byte oldEffect = _bleValues.GetValueOrDefault(BleControl.LightEffect);
         Render();
 
@@ -623,7 +627,7 @@ public partial class TrayWindow : Window
                 fetchLights = control is BleControl.LightEffect or BleControl.LightPower;
             }
             _bleStatus = result.Message;
-            TrayLog.Write($"蓝牙 {spec.Name}。{result.Message}");
+            TrayLog.Write(L.T("蓝牙 {0}。{1}", spec.Name, result.Message));
         }
         catch (Exception error) { RecordBleError(error); }
         finally
@@ -651,7 +655,7 @@ public partial class TrayWindow : Window
                 {
                     _ddcInput = video.Value;
                     _activeInput.Observe(video.Value);
-                    _bleStatus = "DDC 已确认 Type-C，正在核对菜单…";
+                    _bleStatus = L.T("DDC 已确认 Type-C，正在核对菜单…");
                     Render();
                 }
                 return video;
@@ -664,8 +668,8 @@ public partial class TrayWindow : Window
             await CheckActiveInput(generation);
         string message = result.Message;
         if (_activeInput.Fresh && _activeInput.Last is InputSource active)
-            message = $"DDC 活动输入 {InputSources.Name(active)} · " +
-                (result.MenuConfirmed ? "菜单已确认" : "菜单未确认");
+            message = L.T("DDC 活动输入 {0} · ", InputSources.Name(active)) +
+                (result.MenuConfirmed ? L.T("菜单已确认") : L.T("菜单未确认"));
         return new(result.MenuConfirmed, result.MenuConfirmed ? (byte)source : null, message);
     }
 
@@ -686,8 +690,8 @@ public partial class TrayWindow : Window
             await _ble.DisconnectAsync();
             _bleConnected = false;
             _bluetoothInput.Observe(null);
-            _bleStatus = "蓝牙已断开";
-            TrayLog.Write("手动断开蓝牙。");
+            _bleStatus = L.T("蓝牙已断开");
+            TrayLog.Write(L.T("手动断开蓝牙。"));
         }
         catch (Exception error) { RecordBleError(error); }
         finally { _bleBusy = false; Render(); }
@@ -702,7 +706,7 @@ public partial class TrayWindow : Window
             {
                 _bleConnected = false;
                 _bluetoothInput.Observe(null);
-                _bleStatus = "蓝牙闲置五分钟，已断开";
+                _bleStatus = L.T("蓝牙闲置五分钟，已断开");
                 Render();
             }
         }
@@ -717,7 +721,7 @@ public partial class TrayWindow : Window
         {
             RenderInputs(_ddcSources, _ddcInput, _ddcTarget && !_ddcBusy && !_draining && _queued.Count == 0 && !_changingInput);
             RenderInputs(_bleSources, _activeInput.Fresh ? _activeInput.Last : null, !_bleBusy && !_changingInput);
-            BleInputDetail.Text = $"{_activeInput.Describe("DDC 活动输入")}  ·  {_bluetoothInput.Describe("蓝牙报告")}";
+            BleInputDetail.Text = _activeInput.Describe(L.T("DDC 活动输入")) + "  ·  " + _bluetoothInput.Describe(L.T("蓝牙报告"));
             ResetDdc.IsEnabled = !_ddcBusy && !_draining && _queued.Count == 0 &&
                 _levels[DdcControl.Brightness].Writable && _levels[DdcControl.Contrast].Writable;
             Disconnect.IsEnabled = _bleConnected && !_bleBusy && !_changingInput;
@@ -732,7 +736,7 @@ public partial class TrayWindow : Window
                 row.Less.IsEnabled = row.Slider.IsEnabled && value > 0;
                 row.More.IsEnabled = row.Slider.IsEnabled && value < 100;
                 row.Note.Text = control == DdcControl.Volume ? _volumeStatus :
-                    !row.Writable && row.Confirmed.HasValue ? "保留上次回读" : "";
+                    !row.Writable && row.Confirmed.HasValue ? L.T("保留上次回读") : "";
                 row.Note.Visibility = row.Note.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             }
 
@@ -774,9 +778,9 @@ public partial class TrayWindow : Window
         }
         catch (Exception error)
         {
-            TrayLog.Write($"修改登录启动设置。{error.Message}");
+            TrayLog.Write(L.T("修改登录启动设置。{0}", error.Message));
             try { Startup.IsChecked = LoginStartup.Enabled(); } catch { Startup.IsChecked = null; }
-            StatusText.Text = "无法修改登录启动设置";
+            StatusText.Text = L.T("无法修改登录启动设置");
         }
     }
 
@@ -789,7 +793,7 @@ public partial class TrayWindow : Window
         catch (Win32Exception error)
         {
             TrayLog.Write(error.Message);
-            MessageBox.Show(this, "无法使用默认浏览器打开项目仓库。", "GitHub", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, L.T("无法使用默认浏览器打开项目仓库。"), "GitHub", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -797,13 +801,13 @@ public partial class TrayWindow : Window
     {
         try
         {
-            TrayLog.Write("打开本机日志。");
+            TrayLog.Write(L.T("打开本机日志。"));
             Process.Start(new ProcessStartInfo(TrayLog.PathName) { UseShellExecute = true });
         }
         catch (Exception error)
         {
             TrayLog.Write(error.Message);
-            StatusText.Text = "无法打开日志";
+            StatusText.Text = L.T("无法打开日志");
         }
     }
 
@@ -822,7 +826,7 @@ public partial class TrayWindow : Window
             light = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
                 "AppsUseLightTheme", 0) is 1;
         }
-        catch (Exception error) { TrayLog.Write($"读取 Windows 配色。{error.Message}"); }
+        catch (Exception error) { TrayLog.Write(L.T("读取 Windows 配色。{0}", error.Message)); }
 
         UsePalette(light);
     }

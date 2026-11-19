@@ -68,13 +68,13 @@ internal static class ShortcutSwitchChecks
             var fallback = await monitor.SelectAsync();
             Expect(monitor.Calls.SequenceEqual(new[] { $"DDC {target}", $"BLE select {target}", "read video" }) &&
                 fallback.DdcStatus == DdcInputStatus.Unavailable && fallback.ForTarget(target).Confirmed &&
-                fallback.Message.Contains("DDC 未发送"), $"{target} unsent DDC allows one bound BLE selection");
+                fallback.Message.Contains(L.T("DDC 未发送")), $"{target} unsent DDC allows one bound BLE selection");
         }
 
         var lostLink = new FakeMonitor(InputSource.TypeC) { Ddc = DdcInputStatus.Unconfirmed, Active = null };
         var lost = await lostLink.SelectAsync();
         Expect(!lost.ForTarget(InputSource.TypeC).Confirmed && lost.MenuConfirmed &&
-            lost.Message.Contains("已尝试 DDC") && lost.Message.Contains("视频源未确认") &&
+            lost.Message.Contains(L.T("已尝试 DDC 写入")) && lost.Message.Contains(L.T("视频源未确认")) &&
             lostLink.Calls.SequenceEqual(new[] { "DDC TypeC", "BLE query TypeC", "read video" }),
             "Type-C clamshell can lose DDC readback while the BLE menu confirms");
         lostLink.MenuMatches = false;
@@ -112,11 +112,11 @@ internal static class ShortcutSwitchChecks
             { Ddc = DdcInputStatus.Unavailable, ReadFails = true };
         var unknown = await menuOnly.SelectAsync();
         Expect(unknown.MenuConfirmed && !unknown.ForTarget(InputSource.DisplayPort).Confirmed &&
-            unknown.Message.Contains("视频源未确认"), "menu-only fallback never confirms active video");
+            unknown.Message.Contains(L.T("视频源未确认")), "menu-only fallback never confirms active video");
         menuOnly.MenuSet = null;
         menuOnly.Calls.Clear();
         var unsent = await menuOnly.SelectAsync();
-        Expect(!unsent.ForTarget(InputSource.DisplayPort).Confirmed && unsent.Message.Contains("未发送蓝牙切源指令") &&
+        Expect(!unsent.ForTarget(InputSource.DisplayPort).Confirmed && unsent.Message.Contains(L.T("蓝牙未连接，未发送蓝牙切源指令")) &&
             menuOnly.Calls.SequenceEqual(new[] { "DDC DisplayPort", "BLE select DisplayPort" }),
             "unavailable DDC and BLE report no write instead of inventing a selection");
 

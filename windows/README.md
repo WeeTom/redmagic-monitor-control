@@ -2,6 +2,10 @@
 
 这是 REDMAGIC GM001J 4K 的独立 Windows x64 托盘程序。双击 `RedMagicMonitor.exe` 会启动托盘图标，单击图标开关面板。首次打开为 DDC，之后恢复上次查看的页签。「登录时启动」默认关闭，可在面板内调整。
 
+[下载 Windows x64 1.0.0](https://github.com/WeeTom/redmagic-monitor-control/releases/download/v1.0.0/RedMagicMonitor-1.0.0-windows-x64.zip)
+
+程序在启动时按 Windows 首选语言列表选择界面语言，支持简体中文、繁體中文、English、日本語、한국어、Español、Русский、Français、Deutsch 和 Português。列表中没有受支持的语言时使用英文。
+
 ## 本机配置
 
 程序从 `%LOCALAPPDATA%\RedMagicMonitor\settings.json` 读取设备绑定和上次页签。填写显示器 EDID 序列号和 FFD2 蓝牙地址，并照下面的格式保存。在没有填写 EDID 序列号时，DDC 要求系统中恰好有一台有效 EDID 的 GM001J。蓝牙连接会先核对 FFD2 身份。
@@ -46,7 +50,7 @@ dotnet publish .\RedMagicMonitor.csproj -c Release -r win-x64 --self-contained t
 
 `--show` 可在启动时打开面板。`--probe-ddc` 和 `--probe-bluetooth` 各运行一次查询并退出，分别在本机数据目录生成 `ddc-read.json` 和 `bluetooth-read.json`。用 `--data-dir` 可指定单独的配置和日志目录。
 
-在本目录运行 `dotnet run --project ..\tests\windows\ProtocolChecks.csproj -c Release` 可离线检查端口映射、蓝牙组帧与音量回包解析。
+在本目录运行 `dotnet run --project ..\tests\windows\ProtocolChecks.csproj -c Release` 可离线检查语言匹配和翻译资源、端口映射、蓝牙组帧与音量回包解析。
 
 程序图标采用项目的 macOS 应用图案。深色和浅色托盘图标取自同一图案的显示器轮廓。[图标源文件](../assets/Icon.swift)
 

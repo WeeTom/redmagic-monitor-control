@@ -38,14 +38,14 @@ internal sealed class DdcTransport(TraySettings settings)
             }
             if (!volume.HasValue) volume = (int?)ReadNative(monitor, (byte)DdcControl.Volume)?.Value;
             string message = source is not null || brightness is not null || contrast is not null || volume is not null
-                ? "已读取显示器可用项" : "已找到显示器，DDC 暂无有效回读";
+                ? L.T("已读取显示器可用项") : L.T("已找到显示器，DDC 暂无有效回读");
             return new(true, source, brightness, contrast, volume, writable, message,
-                writable ? "显示器 3.5 mm 耳机音量" : "耳机音量写入不可用");
+                writable ? L.T("显示器 3.5 mm 耳机音量") : L.T("耳机音量写入不可用"));
         }
         catch (IOException error)
         {
             TrayLog.Write(error.Message);
-            return new(false, null, null, null, null, false, error.Message, "耳机音量写入不可用");
+            return new(false, null, null, null, null, false, error.Message, L.T("耳机音量写入不可用"));
         }
     }
 
@@ -98,15 +98,15 @@ internal sealed class DdcTransport(TraySettings settings)
             for (int attempt = 0; attempt < 2; attempt++)
             {
                 Thread.Sleep(130);
-                try { if (raw.Read() == percent) return new(true, percent, "耳机音量已确认"); }
+                try { if (raw.Read() == percent) return new(true, percent, L.T("耳机音量已确认")); }
                 catch (IOException error) { TrayLog.Write(error.Message); }
             }
-            return new(false, null, "耳机音量回读未确认");
+            return new(false, null, L.T("耳机音量回读未确认"));
         }
 
         var transport = OpenRaw(monitor);
         var initial = ReadFeature(monitor, transport, (byte)control)
-            ?? throw new IOException("显示器未返回有效的调节范围。");
+            ?? throw new IOException(L.T("显示器未返回有效的调节范围。"));
         uint desired = (uint)Math.Round(percent * initial.Maximum / 100.0, MidpointRounding.AwayFromZero);
         if (desired != initial.Value) monitor.Write((byte)control, desired);
         for (int attempt = 0; attempt < 2; attempt++)
@@ -114,9 +114,9 @@ internal sealed class DdcTransport(TraySettings settings)
             Thread.Sleep(170);
             var result = ReadFeature(monitor, transport, (byte)control);
             if (result is { } read && read.Value == desired && read.Maximum == initial.Maximum)
-                return new(true, Percentage(read.Value, read.Maximum), "调节已确认");
+                return new(true, Percentage(read.Value, read.Maximum), L.T("调节已确认"));
         }
-        return new(false, null, "数值回读未确认");
+        return new(false, null, L.T("数值回读未确认"));
     });
 
     private static NvDdcVolume? OpenRaw(DdcDisplay monitor)
@@ -177,7 +177,7 @@ internal sealed class DdcTransport(TraySettings settings)
                 bool owned;
                 try { owned = gate.WaitOne(TimeSpan.FromSeconds(8)); }
                 catch (AbandonedMutexException) { owned = true; }
-                if (!owned) throw new IOException("DDC 正在使用，请稍后重试。");
+                if (!owned) throw new IOException(L.T("DDC 正在使用，请稍后重试。"));
                 try { return work(); }
                 finally { gate.ReleaseMutex(); }
             }).ConfigureAwait(false);

@@ -32,7 +32,7 @@ internal sealed class TraySettings
         var value = BluetoothAddress?.Trim().Replace(":", "").Replace("-", "");
         if (value?.Length != 12 || !ulong.TryParse(value, NumberStyles.HexNumber,
                 CultureInfo.InvariantCulture, out var address) || address == 0)
-            throw new InvalidOperationException("蓝牙地址尚未配置。请检查本机 settings.json。");
+            throw new InvalidOperationException(L.T("蓝牙地址尚未配置。请检查本机 settings.json。"));
         return address;
     }
 
@@ -45,7 +45,7 @@ internal sealed class TraySettings
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         {
-            TrayLog.Write($"读取本机配置失败。{error.Message}");
+            TrayLog.Write(L.T("读取本机配置失败。{0}", error.Message));
         }
         return new();
     }

@@ -91,7 +91,7 @@ internal sealed class ShortcutChannel
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
-        catch (Exception error) { TrayLog.Write($"快捷方式监听失败。{error.Message}"); }
+        catch (Exception error) { TrayLog.Write(L.T("快捷方式监听失败。{0}", error.Message)); }
     }
 
     private static async Task RespondAsync(NamedPipeServerStream pipe, Func<InputSource, Task<bool>> select,
@@ -110,7 +110,7 @@ internal sealed class ShortcutChannel
                 await pipe.WriteAsync(new byte[] { ok ? (byte)0 : (byte)1 }).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { }
-            catch (Exception error) { TrayLog.Write($"快捷方式请求失败。{error.Message}"); }
+            catch (Exception error) { TrayLog.Write(L.T("快捷方式请求失败。{0}", error.Message)); }
         }
     }
 }

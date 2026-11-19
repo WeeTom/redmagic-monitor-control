@@ -39,26 +39,26 @@ internal sealed class WinBleLink : IDisposable
         string? knownDeviceError = null;
         try
         {
-            var known = await Wait(BluetoothLEDevice.FromBluetoothAddressAsync(address), "查找缓存中的显示器蓝牙");
+            var known = await Wait(BluetoothLEDevice.FromBluetoothAddressAsync(address), L.T("查找缓存中的显示器蓝牙"));
             if (known is not null) return await ConnectDevice(known, address);
         }
         catch (Exception error) when (error is IOException or System.Runtime.InteropServices.COMException)
         {
             knownDeviceError = error.Message;
-            TrayLog.Write($"缓存中的蓝牙设备。{knownDeviceError}");
+            TrayLog.Write(L.T("缓存中的蓝牙设备。{0}", knownDeviceError));
         }
 
         try
         {
             var found = await FindAdvertisement(address);
-            TrayLog.Write($"找到显示器蓝牙广播（{found.Type}）。");
-            var device = await Wait(BluetoothLEDevice.FromBluetoothAddressAsync(found.Address, found.Type), "打开显示器蓝牙");
-            if (device is null) throw new IOException("未找到广播对应的显示器蓝牙设备。");
+            TrayLog.Write(L.T("找到显示器蓝牙广播（{0}）。", found.Type));
+            var device = await Wait(BluetoothLEDevice.FromBluetoothAddressAsync(found.Address, found.Type), L.T("打开显示器蓝牙"));
+            if (device is null) throw new IOException(L.T("未找到广播对应的显示器蓝牙设备。"));
             return await ConnectDevice(device, address);
         }
         catch (IOException error) when (knownDeviceError is not null)
         {
-            throw new IOException($"{error.Message} 缓存设备连接失败。{knownDeviceError}", error);
+            throw new IOException(L.T("{0} 缓存设备连接失败。{1}", error.Message, knownDeviceError), error);
         }
     }
 
@@ -69,8 +69,8 @@ internal sealed class WinBleLink : IDisposable
         WinBleLink? connection = null;
         try
         {
-            TrayLog.Write($"正在建立 GATT 会话。Windows 蓝牙状态 {device.ConnectionStatus}。");
-            session = await Wait(GattSession.FromDeviceIdAsync(device.BluetoothDeviceId), "建立 GATT 会话");
+            TrayLog.Write(L.T("正在建立 GATT 会话。Windows 蓝牙状态 {0}。", device.ConnectionStatus));
+            session = await Wait(GattSession.FromDeviceIdAsync(device.BluetoothDeviceId), L.T("建立 GATT 会话"));
             if (session.CanMaintainConnection) session.MaintainConnection = true;
 
             var services = await DiscoverServices(device);
@@ -79,28 +79,28 @@ internal sealed class WinBleLink : IDisposable
             {
                 var serial = await Characteristic(identity, 0xffd2);
                 if (!serial.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Read))
-                    throw new IOException("蓝牙身份特征 FFD2 不可读。");
-                var reply = await Wait(serial.ReadValueAsync(BluetoothCacheMode.Uncached), "读取蓝牙身份");
-                Check(reply.Status, "读取蓝牙身份");
+                    throw new IOException(L.T("蓝牙身份特征 FFD2 不可读。"));
+                var reply = await Wait(serial.ReadValueAsync(BluetoothCacheMode.Uncached), L.T("读取蓝牙身份"));
+                Check(reply.Status, L.T("读取蓝牙身份"));
                 if (!BleProtocol.IsIdentity(Bytes(reply.Value), address))
-                    throw new UnauthorizedAccessException("FFD2 返回的蓝牙身份与本机配置不符。");
+                    throw new UnauthorizedAccessException(L.T("FFD2 返回的蓝牙身份与本机配置不符。"));
             }
 
             var tx = await Characteristic(control, 0xffe1);
             var rx = await Characteristic(control, 0xffe2);
             if (!tx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.WriteWithoutResponse) ||
                 !rx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify))
-                throw new IOException("蓝牙控制服务没有所需的 FFE1 写入或 FFE2 通知属性。");
+                throw new IOException(L.T("蓝牙控制服务没有所需的 FFE1 写入或 FFE2 通知属性。"));
 
             connection = new WinBleLink(device, control, tx, rx, session);
             Check(await Wait(rx.WriteClientCharacteristicConfigurationDescriptorAsync(
-                GattClientCharacteristicConfigurationDescriptorValue.Notify), "订阅显示器蓝牙通知"), "订阅蓝牙通知");
-            TrayLog.Write("WinRT GATT 已核验 FFD2 身份并订阅 FFE2。");
+                GattClientCharacteristicConfigurationDescriptorValue.Notify), L.T("订阅显示器蓝牙通知")), L.T("订阅蓝牙通知"));
+            TrayLog.Write(L.T("WinRT GATT 已核验 FFD2 身份并订阅 FFE2。"));
             return connection;
         }
         catch
         {
-            TrayLog.Write($"GATT 建连未完成。Windows 蓝牙状态 {device.ConnectionStatus}。");
+            TrayLog.Write(L.T("GATT 建连未完成。Windows 蓝牙状态 {0}。", device.ConnectionStatus));
             if (connection is not null) connection.Dispose();
             else
             {
@@ -117,9 +117,9 @@ internal sealed class WinBleLink : IDisposable
         using var writer = new DataWriter();
         writer.WriteBytes(value);
         var reply = await Wait(_tx.WriteValueWithResultAsync(writer.DetachBuffer(),
-            GattWriteOption.WriteWithoutResponse), "写入蓝牙指令");
-        Check(reply.Status, "写入蓝牙指令");
-        TrayLog.Write($"蓝牙 TX {Convert.ToHexString(value)}");
+            GattWriteOption.WriteWithoutResponse), L.T("写入蓝牙指令"));
+        Check(reply.Status, L.T("写入蓝牙指令"));
+        TrayLog.Write(L.T("蓝牙 TX {0}", Convert.ToHexString(value)));
     }
 
     internal async Task<byte> QueryAsync(BleSpec spec)
@@ -127,7 +127,7 @@ internal sealed class WinBleLink : IDisposable
         var waiting = new PendingReply(spec, new(TaskCreationOptions.RunContinuationsAsynchronously));
         lock (_sync)
         {
-            if (_pending is not null) throw new InvalidOperationException("已有蓝牙查询在进行中。");
+            if (_pending is not null) throw new InvalidOperationException(L.T("已有蓝牙查询在进行中。"));
             _decoder.Reset();
             _pending = waiting;
         }
@@ -136,7 +136,7 @@ internal sealed class WinBleLink : IDisposable
             await SendAsync(spec.QueryFrame());
             byte value = await waiting.Value.Task.WaitAsync(TimeSpan.FromMilliseconds(1050));
             if (!spec.Choices.Any(choice => choice.Code == value))
-                throw new IOException($"{spec.Name}返回未识别的值 0x{value:X2}。");
+                throw new IOException(L.T("{0}返回未识别的值 0x{1:X2}。", spec.Name, value));
             return value;
         }
         finally
@@ -156,7 +156,7 @@ internal sealed class WinBleLink : IDisposable
                 foreach (var frame in _decoder.Feed(chunk))
                 {
                     if (!pending.Spec.Matches(frame)) continue;
-                    TrayLog.Write($"蓝牙 RX {Convert.ToHexString(frame)}");
+                    TrayLog.Write(L.T("蓝牙 RX {0}", Convert.ToHexString(frame)));
                     pending.Value.TrySetResult(frame[2]);
                     break;
                 }
@@ -164,20 +164,20 @@ internal sealed class WinBleLink : IDisposable
         }
         catch (Exception error) when (error is ArgumentException or System.Runtime.InteropServices.COMException)
         {
-            TrayLog.Write($"读取蓝牙通知。{error.Message}");
+            TrayLog.Write(L.T("读取蓝牙通知。{0}", error.Message));
         }
     }
 
     private static async Task<(GattDeviceService Identity, GattDeviceService Control)> DiscoverServices(BluetoothLEDevice device)
     {
-        var reply = await Wait(device.GetGattServicesAsync(BluetoothCacheMode.Uncached), "发现蓝牙服务", 12);
-        TrayLog.Write($"GATT 服务发现返回 {reply.Status}，服务数 {reply.Services.Count}。");
+        var reply = await Wait(device.GetGattServicesAsync(BluetoothCacheMode.Uncached), L.T("发现蓝牙服务"), 12);
+        TrayLog.Write(L.T("GATT 服务发现返回 {0}，服务数 {1}。", reply.Status, reply.Services.Count));
         var services = reply.Services;
         bool accepted = false;
         GattDeviceService? identity = null, control = null;
         try
         {
-            Check(reply.Status, "发现蓝牙服务");
+            Check(reply.Status, L.T("发现蓝牙服务"));
             identity = RequireService(services, BleProtocol.IdentityUuid);
             control = RequireService(services, BleProtocol.ControlUuid);
             accepted = true;
@@ -194,16 +194,16 @@ internal sealed class WinBleLink : IDisposable
     {
         var matches = services.Where(service => service.Uuid == uuid).Take(2).ToArray();
         if (matches.Length == 1) return matches[0];
-        throw new IOException($"无法唯一找到显示器服务 {uuid}。");
+        throw new IOException(L.T("无法唯一找到显示器服务 {0}。", uuid));
     }
 
     private static async Task<GattCharacteristic> Characteristic(GattDeviceService service, ushort id)
     {
         var response = await Wait(service.GetCharacteristicsForUuidAsync(BleProtocol.Uuid(id),
-            BluetoothCacheMode.Uncached), $"发现特征 {id:X4}");
-        Check(response.Status, $"发现特征 {id:X4}");
+            BluetoothCacheMode.Uncached), L.T("发现特征 {0:X4}", id));
+        Check(response.Status, L.T("发现特征 {0:X4}", id));
         return response.Characteristics.Count == 1 ? response.Characteristics[0] :
-            throw new IOException($"无法唯一找到特征 {id:X4}。");
+            throw new IOException(L.T("无法唯一找到特征 {0:X4}。", id));
     }
 
     private static async Task<(ulong Address, BluetoothAddressType Type)> FindAdvertisement(ulong address)
@@ -217,7 +217,7 @@ internal sealed class WinBleLink : IDisposable
                 candidate.TrySetResult((e.BluetoothAddress, e.BluetoothAddressType));
         }
         void Stopped(BluetoothLEAdvertisementWatcher _, BluetoothLEAdvertisementWatcherStoppedEventArgs e) =>
-            candidate.TrySetException(new IOException($"蓝牙扫描停止（{e.Error}）。"));
+            candidate.TrySetException(new IOException(L.T("蓝牙扫描停止（{0}）。", e.Error)));
         watcher.Received += Found;
         watcher.Stopped += Stopped;
         try
@@ -225,7 +225,7 @@ internal sealed class WinBleLink : IDisposable
             watcher.Start();
             return await candidate.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
-        catch (TimeoutException) { throw new IOException("本机未找到与配置匹配的显示器蓝牙广播。"); }
+        catch (TimeoutException) { throw new IOException(L.T("本机未找到与配置匹配的显示器蓝牙广播。")); }
         finally
         {
             watcher.Received -= Found;
@@ -239,7 +239,7 @@ internal sealed class WinBleLink : IDisposable
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
         try { return await operation.AsTask(deadline.Token); }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
-        { throw new IOException($"{action}超时。"); }
+        { throw new IOException(L.T("{0}超时。", action)); }
     }
 
     private static byte[] Bytes(IBuffer buffer)
@@ -253,7 +253,7 @@ internal sealed class WinBleLink : IDisposable
     private static void Check(GattCommunicationStatus status, string action)
     {
         if (status != GattCommunicationStatus.Success)
-            throw new IOException($"{action}失败（{status}）。");
+            throw new IOException(L.T("{0}失败（{1}）。", action, status));
     }
 
     public void Dispose()

@@ -27,7 +27,7 @@ internal sealed class BleTransport(TraySettings settings)
         try { await Serial(Connect); }
         catch (Exception error) when (TransportError(error))
         {
-            TrayLog.Write($"快捷方式蓝牙连接不可用。{error.Message}");
+            TrayLog.Write(L.T("快捷方式蓝牙连接不可用。{0}", error.Message));
             return null;
         }
         return (await SetAsync(BleControl.Input, (byte)source)).Confirmed;
@@ -51,7 +51,7 @@ internal sealed class BleTransport(TraySettings settings)
                 }
                 catch (TimeoutException error)
                 {
-                    TrayLog.Write($"{BleProtocol.Specs[control].Name}查询超时。{error.Message}");
+                    TrayLog.Write(L.T("{0}查询超时。{1}", BleProtocol.Specs[control].Name, error.Message));
                     if (++timedOut >= 2) break;
                 }
                 catch (IOException error)
@@ -60,7 +60,7 @@ internal sealed class BleTransport(TraySettings settings)
                     if (++timedOut >= 2) break;
                 }
             }
-            return new BleSnapshot(true, values, values.Count > 0 ? "蓝牙已连接，已读取可用项" : "蓝牙已连接，暂无有效回读");
+            return new BleSnapshot(true, values, values.Count > 0 ? L.T("蓝牙已连接，已读取可用项") : L.T("蓝牙已连接，暂无有效回读"));
         }
         catch (Exception error) when (TransportError(error))
         {
@@ -77,7 +77,7 @@ internal sealed class BleTransport(TraySettings settings)
         var link = await Connect();
 
         if (IsZone(control) && await link.QueryAsync(BleProtocol.Specs[BleControl.LightEffect]) != 7)
-            throw new IOException("前背灯分色只在多彩流动灯效下可调。");
+            throw new IOException(L.T("前背灯分色只在多彩流动灯效下可调。"));
         if (control == BleControl.LightPower && value == 2)
         {
             var effect = BleProtocol.Specs[BleControl.LightEffect];
@@ -89,7 +89,7 @@ internal sealed class BleTransport(TraySettings settings)
         try { await link.SendAsync(frame); }
         catch (Exception error) when (TransportError(error))
         {
-            TrayLog.Write($"蓝牙写入结果未知。{error.Message}");
+            TrayLog.Write(L.T("蓝牙写入结果未知。{0}", error.Message));
             Drop();
         }
 
@@ -105,8 +105,8 @@ internal sealed class BleTransport(TraySettings settings)
         }
 
         return matched
-            ? new WriteResult<byte>(true, value, $"{spec.Name}已读回确认")
-            : new WriteResult<byte>(false, null, $"{spec.Name}回读未确认");
+            ? new WriteResult<byte>(true, value, L.T("{0}已读回确认", spec.Name))
+            : new WriteResult<byte>(false, null, L.T("{0}回读未确认", spec.Name));
     });
 
     internal async Task<bool> AlignInputAsync(InputSource source, Func<Task<bool>> stillActive)
@@ -122,7 +122,7 @@ internal sealed class BleTransport(TraySettings settings)
         }
         catch (Exception error) when (TransportError(error))
         {
-            TrayLog.Write($"同步菜单输入源。{error.Message}");
+            TrayLog.Write(L.T("同步菜单输入源。{0}", error.Message));
             Drop();
             return false;
         }
@@ -160,7 +160,7 @@ internal sealed class BleTransport(TraySettings settings)
             try { return await (await Connect()).QueryAsync(spec); }
             catch (Exception error) when (TransportError(error))
             {
-                TrayLog.Write($"蓝牙回读 {spec.Name}。{error.Message}");
+                TrayLog.Write(L.T("蓝牙回读 {0}。{1}", spec.Name, error.Message));
                 Drop();
             }
         }
@@ -174,7 +174,7 @@ internal sealed class BleTransport(TraySettings settings)
         {
             if (_link is null || Stopwatch.GetElapsedTime(_lastActivity) < TimeSpan.FromMinutes(IdleMinutes)) return false;
             Drop();
-            TrayLog.Write("蓝牙闲置五分钟，释放连接。");
+            TrayLog.Write(L.T("蓝牙闲置五分钟，释放连接。"));
             return true;
         }
         finally { _serial.Release(); }
@@ -198,7 +198,7 @@ internal sealed class BleTransport(TraySettings settings)
         _link = null;
         if (link is null) return;
         try { link.Dispose(); }
-        catch (Exception error) when (TransportError(error)) { TrayLog.Write($"释放蓝牙连接。{error.Message}"); }
+        catch (Exception error) when (TransportError(error)) { TrayLog.Write(L.T("释放蓝牙连接。{0}", error.Message)); }
     }
 
     private static bool IsZone(BleControl control) => control is BleControl.FrontColor or BleControl.BackColor;

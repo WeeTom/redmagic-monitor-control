@@ -20,7 +20,7 @@ internal sealed class DdcDisplay : IDisposable
     {
         var displays = new List<nint>();
         if (!EnumDisplayMonitors(0, 0, (monitor, _, _, _) => { displays.Add(monitor); return true; }, 0))
-            throw new IOException($"枚举显示器失败 {LastError()}");
+            throw new IOException(L.T("枚举显示器失败 {0}", LastError()));
 
         var matches = new List<(nint Monitor, string Name)>();
         foreach (var handle in displays)
@@ -36,16 +36,16 @@ internal sealed class DdcDisplay : IDisposable
             }
         }
         if (matches.Count != 1)
-            throw new IOException($"需要唯一活动的 GM001J（EDID 匹配），找到 {matches.Count} 台。");
+            throw new IOException(L.T("需要唯一活动的 GM001J（EDID 匹配），找到 {0} 台。", matches.Count));
 
         var target = matches[0];
         if (!GetNumberOfPhysicalMonitorsFromHMONITOR(target.Monitor, out uint count))
-            throw new IOException($"读取物理显示器失败 {LastError()}");
+            throw new IOException(L.T("读取物理显示器失败 {0}", LastError()));
         if (count != 1)
-            throw new IOException($"GM001J 映射到 {count} 个物理句柄。");
+            throw new IOException(L.T("GM001J 映射到 {0} 个物理句柄。", count));
         var physical = new PhysicalMonitor[1];
         if (!GetPhysicalMonitorsFromHMONITOR(target.Monitor, count, physical))
-            throw new IOException($"打开 GM001J 失败 {LastError()}");
+            throw new IOException(L.T("打开 GM001J 失败 {0}", LastError()));
         return new DdcDisplay(physical[0].Handle, target.Name);
     }
 
@@ -80,16 +80,16 @@ internal sealed class DdcDisplay : IDisposable
     internal (uint Value, uint Maximum) Read(byte code)
     {
         if (!GetVCPFeatureAndVCPFeatureReply(_handle, code, out _, out var current, out var maximum))
-            throw new IOException($"读取 VCP 0x{code:X2} 失败 {LastError()}");
+            throw new IOException(L.T("读取 VCP 0x{0:X2} 失败 {1}", code, LastError()));
         if (current > ushort.MaxValue || maximum > ushort.MaxValue || (code == 0x60 && current == 0))
-            throw new IOException($"VCP 0x{code:X2} 返回无效值。");
+            throw new IOException(L.T("VCP 0x{0:X2} 返回无效值。", code));
         return (current, maximum);
     }
 
     internal void Write(byte code, uint value)
     {
         if (!SetVCPFeature(_handle, code, value))
-            throw new IOException($"写入 VCP 0x{code:X2} 未获接口确认 {LastError()}");
+            throw new IOException(L.T("写入 VCP 0x{0:X2} 未获接口确认 {1}", code, LastError()));
     }
 
     public void Dispose()

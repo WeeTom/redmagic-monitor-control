@@ -3,9 +3,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <AssemblyName>RedMagicMonitor</AssemblyName>
-    <AssemblyTitle>红魔显示器</AssemblyTitle>
-    <Product>红魔显示器 Windows</Product>
-    <Version>0.5.4</Version>
+    <AssemblyTitle>REDMAGIC Monitor</AssemblyTitle>
+    <Product>REDMAGIC Monitor for Windows</Product>
+    <Version>1.0.0</Version>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Icons\Monitor.ico</ApplicationIcon>
@@ -15,6 +15,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Locales\*.json" WithCulture="false" LogicalName="Locales.%(Filename).json" />
     <Resource Include="Icons\Monitor.ico" />
     <Resource Include="..\assets\donation\qr\*.png" Link="Donation\%(Filename)%(Extension)" />
     <EmbeddedResource Include="Icons\TrayBlack.ico" LogicalName="TrayBlack.ico" />
