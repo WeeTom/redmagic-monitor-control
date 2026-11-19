@@ -49,36 +49,42 @@ internal sealed class DdcTransport(TraySettings settings)
         }
     }
 
-    internal Task<DdcInputResult> SetInputAsync(InputSource input) => Serial(() =>
+    internal async Task<DdcInputResult> SetInputAsync(InputSource input)
     {
-        string? writeError = null;
-        using (var monitor = DdcDisplay.Open(settings.MonitorSerial))
+        bool attempted = false;
+        try
         {
-            try { monitor.Write(0x60, InputSources.DdcCode(input)); }
-            catch (IOException error) { writeError = error.Message; }
-        }
-        const int readAttempts = 3;
-        int dpReads = 0;
-        for (int attempt = 0; attempt < readAttempts; attempt++)
-        {
-            Thread.Sleep(300);
-            try
+            return await Serial(() =>
             {
-                using var monitor = DdcDisplay.Open(settings.MonitorSerial);
-                var observed = ReadSource(monitor, OpenRaw(monitor));
-                if (observed == input)
-                    return new DdcInputResult(DdcInputStatus.Confirmed, input, $"已确认 {InputSources.Name(input)}");
-                if (observed == InputSource.DisplayPort) dpReads++;
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            { TrayLog.Write(error.Message); }
+                InputSource? original;
+                string? writeError = null;
+                using (var monitor = DdcDisplay.Open(settings.MonitorSerial))
+                {
+                    original = InputSources.FromDdc(ReadNative(monitor, 0x60)?.Value);
+                    var value = InputSources.DdcCode(input);
+                    attempted = true;
+                    try { monitor.Write(0x60, value); }
+                    catch (IOException error) { writeError = error.Message; }
+                }
+                return DdcInputResult.VerifyAttempt(input, original, writeError, () =>
+                {
+                    Thread.Sleep(300);
+                    try
+                    {
+                        using var monitor = DdcDisplay.Open(settings.MonitorSerial);
+                        return ReadSource(monitor, OpenRaw(monitor));
+                    }
+                    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                    { TrayLog.Write(error.Message); return null; }
+                });
+            });
         }
-        // A rejected write can still have reached the panel. Only fall back to a
-        // second transport if the original DP link stayed observable on every read.
-        var status = writeError is not null && dpReads == readAttempts
-            ? DdcInputStatus.Unavailable : DdcInputStatus.Unconfirmed;
-        return new DdcInputResult(status, null, writeError ?? "已发送切源请求，回读尚未确认");
-    });
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or DllNotFoundException or EntryPointNotFoundException)
+        {
+            return new(attempted ? DdcInputStatus.Unconfirmed : DdcInputStatus.Unavailable, null, error.Message);
+        }
+    }
 
     internal Task<WriteResult<int>> SetLevelAsync(DdcControl control, int percent) => Serial<WriteResult<int>>(() =>
     {

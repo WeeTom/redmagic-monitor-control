@@ -3,51 +3,101 @@ using System.Threading.Tasks;
 
 namespace RedMagicMonitor;
 
-internal sealed record ShortcutInputResult(InputSource? ActiveInput, bool MenuConfirmed, string Message)
+internal sealed record ShortcutInputResult(DdcInputStatus DdcStatus, InputSource? ActiveInput,
+    bool MenuConfirmed, string Message)
 {
-    internal WriteResult<InputSource> ForTarget(InputSource target)
-    {
-        bool confirmed = ActiveInput.HasValue ? ActiveInput == target : MenuConfirmed;
-        return new(confirmed, confirmed ? target : null, Message);
-    }
+    internal WriteResult<InputSource> ForTarget(InputSource target) =>
+        new(ActiveInput == target, ActiveInput, Message);
 }
 
 internal static class ShortcutInputSwitcher
 {
     internal static async Task<ShortcutInputResult> SelectAsync(InputSource source, bool bluetoothConfigured,
         Func<InputSource, Task<DdcInputResult>> selectVideo, Func<InputSource, Task<bool?>> selectMenu,
-        Func<InputSource, Task<bool>> alignMenu, Func<Task<InputSource?>> readVideo, Action<string> log)
+        Func<InputSource, Func<Task<bool>>, Task<bool>> alignMenu, Func<Task<InputSource?>> readVideo,
+        Action<string> log)
     {
-        if (!bluetoothConfigured)
+        var ddc = await selectVideo(source);
+        log($"快捷方式 DDC {InputSources.Name(source)}。{ddc.Message}");
+        InputSource? active = ddc.Value;
+        bool checkedAfterWrite = false;
+        async Task<InputSource?> ReadActive()
         {
-            var video = await selectVideo(source);
-            return new(video.Value, false, video.Message);
-        }
-
-        bool menu;
-        if (source == InputSource.TypeC)
-        {
-            var result = await TypeCReturn.SelectAsync(() => selectVideo(source), () => alignMenu(source),
-                async () => await selectMenu(source) == true, log);
-            if (result.Video.Status != DdcInputStatus.Unavailable)
-                return new(result.Video.Value, result.MenuConfirmed, result.Message);
-            menu = result.MenuConfirmed;
-        }
-        else
-        {
-            bool? selected = await selectMenu(source);
-            if (selected is null)
+            checkedAfterWrite = true;
+            try
             {
-                var video = await selectVideo(source);
-                return new(video.Value, false, $"蓝牙未连接。{video.Message}");
+                var observed = await readVideo();
+                if (observed.HasValue) active = observed;
+                return observed;
             }
-            menu = selected.Value;
+            catch (Exception error)
+            {
+                log($"核对活动输入。{error.Message}");
+                return null;
+            }
         }
 
-        InputSource? active = null;
-        try { active = await readVideo(); }
-        catch (Exception error) { log($"核对活动输入。{error.Message}"); }
-        string videoMessage = active.HasValue ? $"DDC 活动输入 {InputSources.Name(active.Value)}" : "视频源未确认";
-        return new(active, menu, videoMessage + (menu ? " · 蓝牙菜单已确认" : " · 蓝牙菜单未确认"));
+        bool supplementFromPrior = false;
+        async Task<bool> MayAlignMenu()
+        {
+            var observed = await ReadActive();
+            if (observed == source) return true;
+            supplementFromPrior = ddc.Status == DdcInputStatus.Unconfirmed &&
+                observed.HasValue && observed == ddc.RetryFrom;
+            return supplementFromPrior;
+        }
+
+        bool menuConfirmed = false;
+        string menu = "蓝牙未配置";
+        if (bluetoothConfigured)
+        {
+            bool fallbackMayHaveSent = false;
+            try
+            {
+                bool? confirmation;
+                if (ddc.Status == DdcInputStatus.Unavailable)
+                {
+                    // Only this status guarantees the DDC SET was never attempted.
+                    fallbackMayHaveSent = true;
+                    confirmation = await selectMenu(source);
+                    fallbackMayHaveSent = confirmation.HasValue;
+                }
+                else
+                {
+                    // A fresh read must match the target or the repeatedly verified
+                    // pre-switch input from a rejected DDC SET before touching the menu.
+                    confirmation = await alignMenu(source, MayAlignMenu);
+                }
+                menuConfirmed = confirmation == true;
+                menu = confirmation switch
+                {
+                    true => "蓝牙菜单已确认",
+                    false => "蓝牙菜单未确认",
+                    null => "蓝牙未连接，未发送蓝牙切源指令"
+                };
+            }
+            catch (Exception error)
+            {
+                menu = $"蓝牙菜单未确认。{error.Message}";
+                log(menu);
+            }
+            if (fallbackMayHaveSent || supplementFromPrior || (ddc.Status == DdcInputStatus.Unconfirmed && !checkedAfterWrite))
+            {
+                // A BLE write can move the video away from the last observed port.
+                if (fallbackMayHaveSent || supplementFromPrior) active = null;
+                await ReadActive();
+            }
+            if (fallbackMayHaveSent) menu = $"已尝试蓝牙切源 · {menu}";
+            else if (supplementFromPrior) menu = $"已尝试蓝牙补切 · {menu}";
+        }
+
+        string write = ddc.Status switch
+        {
+            DdcInputStatus.Confirmed => "DDC 写入已确认",
+            DdcInputStatus.Unconfirmed => "已尝试 DDC 写入",
+            _ => "DDC 未发送"
+        };
+        string video = active.HasValue ? $"DDC 活动输入 {InputSources.Name(active.Value)}" : "视频源未确认";
+        return new(ddc.Status, active, menuConfirmed, $"{write} · {video} · {menu}");
     }
 }

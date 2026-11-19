@@ -82,5 +82,21 @@ await CheckTypeCReturn("DDC open exception falls back to one BLE selection",
 await CheckTypeCReturn("failed BLE fallback leaves both outcomes unconfirmed", unavailable, bleDisconnected,
     "force BLE", DdcInputStatus.Unavailable, false);
 
+foreach (var target in InputSources.All)
+{
+    var original = target == InputSource.DisplayPort ? InputSource.Hdmi1 : InputSource.DisplayPort;
+    var stable = DdcInputResult.VerifyAttempt(target, original, "driver rejected SET", () => original);
+    Expect(stable.Status == DdcInputStatus.Unconfirmed && stable.Value == null && stable.RetryFrom == original,
+        $"rejected SET to {target} still counts as attempted despite stable original video");
+    var lost = new Queue<InputSource?>([original, null, original]);
+    var uncertain = DdcInputResult.VerifyAttempt(target, original, "driver rejected SET", lost.Dequeue);
+    Expect(uncertain.Status == DdcInputStatus.Unconfirmed && uncertain.RetryFrom == null,
+        $"missing video readback after {target} write prevents a retry based on the original port");
+    var delayed = new Queue<InputSource?>([original, target]);
+    var confirmedLater = DdcInputResult.VerifyAttempt(target, original, "driver rejected SET", delayed.Dequeue);
+    Expect(confirmedLater.Status == DdcInputStatus.Confirmed && confirmedLater.Value == target,
+        $"actual video read confirms {target} even if native SET returned an error");
+}
+
 await ShortcutSwitchChecks.RunAsync();
 ShortcutCommandChecks.Run();

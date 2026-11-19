@@ -643,7 +643,7 @@ public partial class TrayWindow : Window
                 : Task.FromResult(false),
             async () => Current() && (await _ble.SetAsync(BleControl.Input, (byte)source)).Confirmed,
             TrayLog.Write);
-        if (result.Video.Status == DdcInputStatus.Unavailable && Current())
+        if ((result.Video.Status == DdcInputStatus.Unavailable || result.Video.RetryFrom == InputSource.DisplayPort) && Current())
             await CheckActiveInput(generation);
         string message = result.Message;
         if (_activeInput.Fresh && _activeInput.Last is InputSource active)

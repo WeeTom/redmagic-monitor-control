@@ -19,6 +19,14 @@ public partial class TrayWindow
         if (_exiting) return new(false, null, "托盘正在退出。");
 
         BeginInputChange();
+        int generation = _sourceGeneration;
+        bool Current() => !_exiting && _sourceGeneration == generation;
+        async Task<InputSource?> ReadCurrentInput()
+        {
+            if (!Current()) return null;
+            var observed = await _ddc.ReadInputAsync();
+            return Current() ? observed : null;
+        }
         _ddcBusy = _bleBusy = true;
         _ddcStatus = _bleStatus = $"快捷方式正在切换到 {InputSources.Name(source)}…";
         Render();
@@ -26,10 +34,9 @@ public partial class TrayWindow
         {
             var result = await ShortcutInputSwitcher.SelectAsync(source,
                 !string.IsNullOrWhiteSpace(_settings.BluetoothAddress), _ddc.SetInputAsync,
-                _ble.TrySelectInputAsync,
-                target => _exiting ? Task.FromResult(false) : _ble.AlignInputAsync(target,
-                    async () => await _ddc.ReadInputAsync() == target && !_exiting),
-                _ddc.ReadInputAsync, TrayLog.Write);
+                target => Current() ? _ble.TrySelectInputAsync(target) : Task.FromResult<bool?>(null),
+                (target, stillActive) => Current() ? _ble.AlignInputAsync(target, stillActive) : Task.FromResult(false),
+                ReadCurrentInput, TrayLog.Write);
             _ddcInput = result.ActiveInput;
             _activeInput.Observe(result.ActiveInput);
             if (result.MenuConfirmed)

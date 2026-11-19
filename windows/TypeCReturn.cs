@@ -6,7 +6,27 @@ namespace RedMagicMonitor;
 
 internal enum DdcInputStatus { Unavailable, Unconfirmed, Confirmed }
 
-internal sealed record DdcInputResult(DdcInputStatus Status, InputSource? Value, string Message);
+internal sealed record DdcInputResult(DdcInputStatus Status, InputSource? Value, string Message,
+    InputSource? RetryFrom = null)
+{
+    // Called only after the native SET was attempted. A driver error is not proof
+    // that the monitor rejected it. Record a possible retry only if the original
+    // port is still visible on every independent readback.
+    internal static DdcInputResult VerifyAttempt(InputSource target, InputSource? original, string? writeError,
+        Func<InputSource?> read)
+    {
+        InputSource? unchanged = original;
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            var observed = read();
+            if (observed == target)
+                return new(DdcInputStatus.Confirmed, target, $"已确认 {InputSources.Name(target)}");
+            if (observed != original) unchanged = null;
+        }
+        return new(DdcInputStatus.Unconfirmed, null, writeError ?? "已发送切源请求，回读尚未确认",
+            writeError == null ? null : unchanged);
+    }
+}
 
 internal sealed record TypeCReturn(DdcInputResult Video, bool MenuConfirmed)
 {
@@ -32,7 +52,7 @@ internal sealed record TypeCReturn(DdcInputResult Video, bool MenuConfirmed)
         // readback. In that case check the menu without blindly issuing a second SET.
         try
         {
-            bool confirmed = video.Status == DdcInputStatus.Unavailable
+            bool confirmed = video.Status == DdcInputStatus.Unavailable || video.RetryFrom == InputSource.DisplayPort
                 ? await selectMenu() : await alignMenu();
             return new(video, confirmed);
         }
