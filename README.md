@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.4 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.2 支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.4 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -45,9 +45,9 @@ open "build/红魔显示器.app"
 
 ## Windows 快速开始
 
-下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.2](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.2/RedMagicMonitor.exe)
+下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.3](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.3/RedMagicMonitor.exe)
 
-在任一控制页的输入源区域点击「导出快捷方式」，选择接口并保存 `.lnk`。打开它即可切源，托盘程序会按需启动。快捷方式指向导出时的 EXE，移动程序后可重新导出。
+在任一控制页的输入源区域点击「导出快捷方式」，选择接口并保存 `.lnk`。打开它即可切源，托盘程序会按需启动。四个接口均优先使用 DDC，必要时通过已绑定的蓝牙接续处理。快捷方式指向导出时的 EXE，移动程序后可重新导出。
 
 如需自行构建，可下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
 
