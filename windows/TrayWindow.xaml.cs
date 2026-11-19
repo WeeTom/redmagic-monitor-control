@@ -350,7 +350,7 @@ public partial class TrayWindow : Window
         {
             var result = await _ddc.SetInputAsync(source);
             _ddcStatus = result.Message;
-            if (result.Confirmed)
+            if (result.Status == DdcInputStatus.Confirmed)
             {
                 _ddcInput = result.Value;
                 _activeInput.Observe(result.Value);
@@ -548,18 +548,21 @@ public partial class TrayWindow : Window
     private async void SetBluetooth(BleControl control, byte value)
     {
         bool sourceChange = control == BleControl.Input;
+        bool returnToTypeC = sourceChange && value == (byte)InputSource.TypeC;
         if (_bleBusy || _exiting || _changingInput || (!sourceChange && !_bleValues.ContainsKey(control))) return;
         if (sourceChange) BeginInputChange();
         _bleBusy = true;
         var spec = BleProtocol.Specs[control];
-        _bleStatus = $"正在确认{spec.Name}…";
+        _bleStatus = returnToTypeC ? "正在通过 DDC 切换到 Type-C…" : $"正在确认{spec.Name}…";
         byte oldEffect = _bleValues.GetValueOrDefault(BleControl.LightEffect);
         Render();
 
         bool fetchLights = false;
         try
         {
-            var result = await _ble.SetAsync(control, value);
+            var result = returnToTypeC
+                ? await SelectTypeCFromBluetooth(_sourceGeneration)
+                : await _ble.SetAsync(control, value);
             _bleConnected = _ble.HasConnection;
             if (result is { Confirmed: true, Value: byte verified })
             {
@@ -580,13 +583,43 @@ public partial class TrayWindow : Window
         {
             if (sourceChange)
             {
+                if (!returnToTypeC && !_exiting) await CheckActiveInput(_sourceGeneration);
                 _changingInput = false;
-                if (!_exiting) await CheckActiveInput(_sourceGeneration);
             }
             _bleBusy = false;
             Render();
         }
         if (fetchLights && !_exiting && _page == TransportPage.Bluetooth) RefreshBluetooth();
+    }
+
+    private async Task<WriteResult<byte>> SelectTypeCFromBluetooth(int generation)
+    {
+        const InputSource source = InputSource.TypeC;
+        bool Current() => !_exiting && _sourceGeneration == generation;
+        var result = await TypeCReturn.SelectAsync(
+            async () =>
+            {
+                var video = await _ddc.SetInputAsync(source);
+                if (Current() && video.Status == DdcInputStatus.Confirmed)
+                {
+                    _ddcInput = video.Value;
+                    _activeInput.Observe(video.Value);
+                    _bleStatus = "DDC 已确认 Type-C，正在核对菜单…";
+                    Render();
+                }
+                return video;
+            },
+            () => Current() ? _ble.AlignInputAsync(source, async () => await CheckActiveInput(generation) == source)
+                : Task.FromResult(false),
+            async () => Current() && (await _ble.SetAsync(BleControl.Input, (byte)source)).Confirmed,
+            TrayLog.Write);
+        if (result.Video.Status == DdcInputStatus.Unavailable && Current())
+            await CheckActiveInput(generation);
+        string message = result.Message;
+        if (_activeInput.Fresh && _activeInput.Last is InputSource active)
+            message = $"DDC 活动输入 {InputSources.Name(active)} · " +
+                (result.MenuConfirmed ? "菜单已确认" : "菜单未确认");
+        return new(result.MenuConfirmed, result.MenuConfirmed ? (byte)source : null, message);
     }
 
     private void RecordBleError(Exception error)

@@ -5,7 +5,7 @@
     <AssemblyName>RedMagicMonitor</AssemblyName>
     <AssemblyTitle>红魔显示器</AssemblyTitle>
     <Product>红魔显示器 Windows</Product>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Icons\Monitor.ico</ApplicationIcon>

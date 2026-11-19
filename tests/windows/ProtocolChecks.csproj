@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="$(TraySource)\BleProtocol.cs" Link="BleProtocol.cs" />
     <Compile Include="$(TraySource)\MonitorModel.cs" Link="MonitorModel.cs" />
+    <Compile Include="$(TraySource)\TypeCReturn.cs" Link="TypeCReturn.cs" />
     <Compile Include="$(TraySource)\NvDdcVolume.cs" Link="NvDdcVolume.cs" />
     <Compile Include="$(TraySource)\TraySettings.cs" Link="TraySettings.cs" />
   </ItemGroup>

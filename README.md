@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 应用版本为 0.5.1，支持 Apple Silicon 和 macOS 14 或更高版本。Windows 应用版本为 0.5.0，支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 与 Windows 应用版本均为 0.5.1，分别支持 Apple Silicon（macOS 14 或更高版本）和 Windows x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -37,7 +37,9 @@ open "build/红魔显示器.app"
 
 ## Windows 快速开始
 
-Windows 上可直接下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
+下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.1](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.1/RedMagicMonitor.exe)
+
+如需自行构建，可下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
 
 安装 .NET 10 SDK 后，可在 PowerShell 中克隆仓库并启动托盘程序。
 

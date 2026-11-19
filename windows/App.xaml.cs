@@ -84,7 +84,7 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(new Action(() => _panel.TogglePanel()));
             };
             _panel.QuitRequested += Quit;
-            TrayLog.Write("红魔显示器 0.5.0 托盘已启动。");
+            TrayLog.Write("红魔显示器 0.5.1 托盘已启动。");
             if (args.Contains("--show")) _panel.ShowPanel();
         }
         catch (Exception error)

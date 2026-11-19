@@ -41,3 +41,43 @@ Expect(NvDdcVolume.VolumeFrame(100).SequenceEqual(Hex("51 85 C8 00 62 00 64 74")
 Reject("6E 00 00 FF FF 01 FF FF FF FF FF");
 Reject("6E 88 02 00 62 01 FF FF 00 0A 00");
 Reject("6E 89 C7 00 00 62 01 FF FF 00 00");
+
+static async Task CheckTypeCReturn(string scenario, Task<DdcInputResult> video, Task<bool> menu,
+    string expectedBleCall, DdcInputStatus expectedVideo, bool expectedMenu)
+{
+    var calls = new List<string>();
+    var result = await TypeCReturn.SelectAsync(
+        () => { calls.Add("DDC Type-C"); return video; },
+        () => { calls.Add("align menu"); return menu; },
+        () => { calls.Add("force BLE"); return menu; },
+        _ => { });
+    Expect(calls.SequenceEqual(new[] { "DDC Type-C", expectedBleCall }), scenario + " call order");
+    InputSource? expectedSource = expectedVideo == DdcInputStatus.Confirmed ? InputSource.TypeC : null;
+    Expect(result.Video.Status == expectedVideo && result.Video.Value == expectedSource &&
+        result.MenuConfirmed == expectedMenu, scenario + " independent readbacks");
+}
+
+var confirmed = Task.FromResult(new DdcInputResult(DdcInputStatus.Confirmed, InputSource.TypeC, "read Type-C"));
+var unconfirmed = Task.FromResult(new DdcInputResult(DdcInputStatus.Unconfirmed, null, "DP link disappeared"));
+var unavailable = Task.FromResult(new DdcInputResult(DdcInputStatus.Unavailable, null, "no DDC target"));
+var menuConfirmed = Task.FromResult(true);
+var menuUnconfirmed = Task.FromResult(false);
+var bleDisconnected = Task.FromException<bool>(new IOException("Bluetooth disconnected"));
+
+await CheckTypeCReturn("DDC and menu confirmed", confirmed, menuConfirmed,
+    "align menu", DdcInputStatus.Confirmed, true);
+await CheckTypeCReturn("DDC confirmed but menu differs", confirmed, menuUnconfirmed,
+    "align menu", DdcInputStatus.Confirmed, false);
+await CheckTypeCReturn("BLE disconnection preserves confirmed video", confirmed, bleDisconnected,
+    "align menu", DdcInputStatus.Confirmed, false);
+await CheckTypeCReturn("lost DP readback with matching menu", unconfirmed, menuConfirmed,
+    "align menu", DdcInputStatus.Unconfirmed, true);
+await CheckTypeCReturn("lost DP readback and unverified menu never force a second switch", unconfirmed, menuUnconfirmed,
+    "align menu", DdcInputStatus.Unconfirmed, false);
+await CheckTypeCReturn("no DDC target falls back to one BLE selection", unavailable, menuConfirmed,
+    "force BLE", DdcInputStatus.Unavailable, true);
+await CheckTypeCReturn("DDC open exception falls back to one BLE selection",
+    Task.FromException<DdcInputResult>(new IOException("cannot open target")), menuConfirmed,
+    "force BLE", DdcInputStatus.Unavailable, true);
+await CheckTypeCReturn("failed BLE fallback leaves both outcomes unconfirmed", unavailable, bleDisconnected,
+    "force BLE", DdcInputStatus.Unavailable, false);

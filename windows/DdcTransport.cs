@@ -49,7 +49,7 @@ internal sealed class DdcTransport(TraySettings settings)
         }
     }
 
-    internal Task<WriteResult<InputSource>> SetInputAsync(InputSource input) => Serial(() =>
+    internal Task<DdcInputResult> SetInputAsync(InputSource input) => Serial(() =>
     {
         string? writeError = null;
         using (var monitor = DdcDisplay.Open(settings.MonitorSerial))
@@ -57,18 +57,27 @@ internal sealed class DdcTransport(TraySettings settings)
             try { monitor.Write(0x60, InputSources.DdcCode(input)); }
             catch (IOException error) { writeError = error.Message; }
         }
-        for (int attempt = 0; attempt < 3; attempt++)
+        const int readAttempts = 3;
+        int dpReads = 0;
+        for (int attempt = 0; attempt < readAttempts; attempt++)
         {
             Thread.Sleep(300);
             try
             {
                 using var monitor = DdcDisplay.Open(settings.MonitorSerial);
-                if (ReadSource(monitor, OpenRaw(monitor)) == input)
-                    return new WriteResult<InputSource>(true, input, $"已确认 {InputSources.Name(input)}");
+                var observed = ReadSource(monitor, OpenRaw(monitor));
+                if (observed == input)
+                    return new DdcInputResult(DdcInputStatus.Confirmed, input, $"已确认 {InputSources.Name(input)}");
+                if (observed == InputSource.DisplayPort) dpReads++;
             }
-            catch (IOException error) { TrayLog.Write(error.Message); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { TrayLog.Write(error.Message); }
         }
-        return new WriteResult<InputSource>(false, null, writeError ?? "已发送切源请求，回读尚未确认");
+        // A rejected write can still have reached the panel. Only fall back to a
+        // second transport if the original DP link stayed observable on every read.
+        var status = writeError is not null && dpReads == readAttempts
+            ? DdcInputStatus.Unavailable : DdcInputStatus.Unconfirmed;
+        return new DdcInputResult(status, null, writeError ?? "已发送切源请求，回读尚未确认");
     });
 
     internal Task<WriteResult<int>> SetLevelAsync(DdcControl control, int percent) => Serial<WriteResult<int>>(() =>
