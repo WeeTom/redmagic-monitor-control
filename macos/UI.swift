@@ -2,11 +2,16 @@ import SwiftUI
 import AppKit
 
 enum PanelLayout {
+    static let width: CGFloat = 390
+    static let height: CGFloat = 840
     static let margin: CGFloat = 16
     static let menuWidth: CGFloat = 166
 
-    static func size(for channel: ControlChannel) -> CGSize {
-        CGSize(width: 390, height: channel == .ddc ? 540 : 600)
+    @MainActor
+    static func size(on screen: NSScreen?) -> CGSize {
+        // The popover's arrow and outer frame sit outside its content rectangle.
+        let available = screen.map { max(1, floor($0.visibleFrame.height) - 32) } ?? height
+        return CGSize(width: width, height: min(height, available))
     }
 }
 
@@ -82,53 +87,58 @@ struct ControlPanel: View {
         isDDC ? store.noteDDC("input") : store.noteBLE(.input)
     }
     var body: some View {
-        let size = PanelLayout.size(for: store.channel)
         VStack(spacing: 0) {
-            header
+            header.fixedSize(horizontal: false, vertical: true)
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    inputCard
-                    if isDDC {
-                        SettingsCard(title: "显示与声音", symbol: "slider.horizontal.3") {
-                            setting("luminance", title: "屏幕亮度")
-                            setting("contrast", title: "对比度")
-                            Divider()
-                            setting("volume", title: "耳机音量")
-                            if store.ddcValues["luminance"] == nil {
-                                hint("等待读取亮度。若读取失败，请切回 Type-C 后刷新。")
-                            }
-                        }
-                    } else {
-                        SettingsCard(title: "画面", symbol: "rectangle.on.rectangle") {
-                            selector(.mode)
-                            selector(.hdr)
-                        }
-                        SettingsCard(title: "氛围灯", symbol: "lightbulb") {
-                            selector(.lightPower, title: "灯光开关")
-                            selector(.lightEffect)
-                            selector(.lightLevel)
-                            if store.values[.lightEffect] == 7 {
-                                selector(.frontColor)
-                                selector(.rearColor)
-                            } else if store.values[.lightEffect] != 6 {
-                                selector(.lightColor)
-                            }
-                        }
-                    }
-                    if !store.message.isEmpty { hint(store.message) }
-                }
-                .padding(.horizontal, PanelLayout.margin)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ViewThatFits(in: .vertical) {
+                settings.fixedSize(horizontal: false, vertical: true)
+                ScrollView(.vertical) { settings }
+                    .scrollIndicators(.never)
+                    .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             }
-            .scrollIndicators(.never)
-            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             Divider()
-            footer
+            footer.fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: PanelLayout.width)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var settings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            inputCard
+            if isDDC {
+                SettingsCard(title: "显示与声音", symbol: "slider.horizontal.3") {
+                    setting("luminance", title: "屏幕亮度")
+                    setting("contrast", title: "对比度")
+                    Divider()
+                    setting("volume", title: "耳机音量")
+                    if store.ddcValues["luminance"] == nil {
+                        hint("等待读取亮度。若读取失败，请切回 Type-C 后刷新。")
+                    }
+                }
+            } else {
+                SettingsCard(title: "画面", symbol: "rectangle.on.rectangle") {
+                    selector(.mode)
+                    selector(.hdr)
+                }
+                SettingsCard(title: "氛围灯", symbol: "lightbulb") {
+                    selector(.lightPower, title: "灯光开关")
+                    selector(.lightEffect)
+                    selector(.lightLevel)
+                    if store.values[.lightEffect] == 7 {
+                        selector(.frontColor)
+                        selector(.rearColor)
+                    } else if store.values[.lightEffect] != 6 {
+                        selector(.lightColor)
+                    }
+                }
+            }
+            if !store.message.isEmpty { hint(store.message) }
+        }
+        .padding(.horizontal, PanelLayout.margin)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -151,9 +161,9 @@ struct ControlPanel: View {
                 .fixedSize()
             }
             HStack(spacing: 6) {
-                if store.busy {
-                    ProgressView().controlSize(.mini).frame(width: 12)
-                }
+                Color.clear.frame(width: 12, height: 12).overlay {
+                    if store.busy { ProgressView().controlSize(.mini) }
+                }.accessibilityHidden(true)
                 Text(store.status)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -170,7 +180,7 @@ struct ControlPanel: View {
                     .accessibilityLabel("刷新当前页面").help("重新读取当前通道的设置")
             }
             .controlSize(.small)
-            .frame(minHeight: 20)
+            .frame(height: 30)
         }
         .padding(.horizontal, PanelLayout.margin)
         .padding(.top, 13)

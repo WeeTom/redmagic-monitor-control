@@ -96,7 +96,6 @@ final class DisplayStore:ObservableObject {
         d.onActivity={ [weak self] active in self?.ddcBusy=active;self?.changed();self?.finishRefresh() }
         return d
     }()
-    var onChange:(()->Void)?
     var onRefreshComplete:(()->Void)?
     var busy:Bool { pendingBLE>0 || ddcBusy || !ddcReading.isEmpty || !ddcWriting.isEmpty }
     var inputBusy:Bool { ddcWriting.contains("input") || bleWriting.contains(.input) }
@@ -171,7 +170,6 @@ final class DisplayStore:ObservableObject {
         }
     }
     private func changed() {
-        onChange?()
         guard !demo,reportStatus else { return }
         statusSave?.cancel()
         let state:[String:Any] = ["channel":channel.preferenceName,"status":status,"message":message,"pendingBLE":pendingBLE,"ddcBusy":ddcBusy,"ddcValues":ddcValues,"ddcDrafts":ddcDrafts,"stale":Array(stale),"bluetoothValues":Dictionary(uniqueKeysWithValues:values.map { ($0.key.title,$0.value) }),"bluetoothConnected":bluetoothConnected,"bluetoothIdleDisconnectSeconds":300,"volumeMaximum":100,"volumeTransport":"DDC factory C8","channelSelectionPolicy":"read missing values; reconnect Bluetooth on entry when disconnected","bluetoothControllerCreated":bluetoothCreated,"automaticRefreshWritesSettings":false]
