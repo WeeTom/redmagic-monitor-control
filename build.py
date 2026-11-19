@@ -28,15 +28,12 @@ run(*swift_compiler,*sorted((ROOT/'macos').glob('*.swift')),*ddc_link,
     '-o',APP/'Contents/MacOS/RedMagicDisplay')
 shutil.copy2(ROOT/'LICENSE',APP/'Contents/Resources/LICENSE.txt')
 shutil.copy2(ROOT/'third_party/m1ddc/LICENSE',APP/'Contents/Resources/m1ddc-LICENSE.txt')
-donation_resources = APP/'Contents/Resources/Donation'
-donation_resources.mkdir()
-for asset in ('qr/venmo.png', 'app/alipay.png', 'app/wechat-pay.png'):
-    shutil.copy2(ROOT/'assets/donation'/asset, donation_resources)
+shutil.copytree(ROOT/'assets/donation/qr', APP/'Contents/Resources/Donation')
 run('swiftc',ROOT/'assets/Icon.swift','-o',BUILD/'IconBuilder')
 run(BUILD/'IconBuilder',BUILD/'AppIcon.iconset')
 run('iconutil','-c','icns',BUILD/'AppIcon.iconset','-o',APP/'Contents/Resources/AppIcon.icns')
 info={'CFBundleName':'红魔显示器','CFBundleDisplayName':'红魔显示器','CFBundleIdentifier':'com.local.redmagic-display',
-      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.5.6','CFBundleVersion':'14',
+      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.5.7','CFBundleVersion':'15',
       'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True,'NSPrincipalClass':'NSApplication','CFBundleIconFile':'AppIcon',
       'NSBluetoothAlwaysUsageDescription':'通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。',
       'NSBluetoothPeripheralUsageDescription':'连接红魔显示器并控制输入源及已支持的设置。'}

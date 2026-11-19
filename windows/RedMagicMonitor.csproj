@@ -16,9 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Icons\Monitor.ico" />
-    <Resource Include="..\assets\donation\qr\venmo.png" Link="Donation\venmo.png" />
-    <Resource Include="..\assets\donation\app\alipay.png" Link="Donation\alipay.png" />
-    <Resource Include="..\assets\donation\app\wechat-pay.png" Link="Donation\wechat-pay.png" />
+    <Resource Include="..\assets\donation\qr\*.png" Link="Donation\%(Filename)%(Extension)" />
     <EmbeddedResource Include="Icons\TrayBlack.ico" LogicalName="TrayBlack.ico" />
     <EmbeddedResource Include="Icons\TrayWhite.ico" LogicalName="TrayWhite.ico" />
   </ItemGroup>

@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.6 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.7 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -84,7 +84,7 @@ swiftc macos/Features.swift macos/InputShortcutExporter.swift tests/input_shortc
 
 ## 赞助 · Donation
 
-如果这个工具帮到了你，欢迎扫码支持后续开发。点击二维码可放大，也可以在应用顶部的「捐献」页扫码。
+如果这个工具帮到了你，欢迎扫码支持后续开发。点击下方二维码可放大，或在应用的「捐献」页扫描同一组收款码。
 
 | Venmo | 支付宝 | 微信支付 |
 | :---: | :---: | :---: |
