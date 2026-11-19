@@ -232,8 +232,6 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <Button Content="GitHub" ToolTip="在浏览器中打开项目仓库" Margin="0,3,0,0"
-                  Visibility="{Binding Visibility, ElementName=DonationCards}" Click="OpenGitHub"/>
           <StackPanel x:Name="BlePage" Visibility="Collapsed">
             <UniformGrid x:Name="BleInputs" Columns="4"/>
             <TextBlock x:Name="BleInputDetail" TextWrapping="Wrap" FontSize="12" Margin="2,6,2,0"
@@ -257,8 +255,10 @@
           <CheckBox x:Name="Startup" Content="登录时启动" DockPanel.Dock="Left" Click="ChangeStartup"/>
           <Button x:Name="Disconnect" Content="断开蓝牙" DockPanel.Dock="Right" Visibility="Hidden" Click="DisconnectClicked"/>
         </DockPanel>
-        <UniformGrid x:Name="FooterActions" Columns="3" Margin="0,10,0,0">
+        <UniformGrid Columns="3" Margin="0,10,0,0">
           <Button x:Name="RefreshButton" Content="刷新" Margin="0,0,4,0" Click="RefreshClicked"/>
+          <Button Content="GitHub" ToolTip="在浏览器中打开项目仓库" Margin="0,0,4,0"
+                  Visibility="{Binding Visibility, ElementName=DonationCards}" Click="OpenGitHub"/>
           <Button Content="日志" Margin="4,0,4,0" Click="OpenLog"/>
           <Button Content="退出" Margin="4,0,0,0" Click="QuitClicked"/>
         </UniformGrid>

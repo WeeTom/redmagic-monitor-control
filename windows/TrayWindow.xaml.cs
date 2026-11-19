@@ -227,7 +227,6 @@ public partial class TrayWindow : Window
         InputHeading.Visibility = TransportStatus.Visibility = RefreshButton.Visibility =
             donation ? Visibility.Collapsed : Visibility.Visible;
         Disconnect.Visibility = bluetooth ? Visibility.Visible : Visibility.Hidden;
-        FooterActions.Columns = donation ? 2 : 3;
         Body.ScrollToTop();
         Render();
     }
