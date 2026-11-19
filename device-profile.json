@@ -1,0 +1,73 @@
+{
+  "model": "REDMAGIC GM001J",
+  "service": "0000E0FF-3C17-D293-8E48-14FE2E4DA212",
+  "write": "FFE1",
+  "notify": "FFE2",
+  "identity_service": "0000D0FF-3C17-D293-8E48-14FE2E4DA212",
+  "identity_characteristic": "FFD2",
+  "write_mode": "withoutResponse",
+  "volume_write_maximum": 100,
+  "command_serialization_required": true,
+  "commands_have_sequence_ids": false,
+  "set_ack_is_state_confirmation": false,
+  "hardware_behavior_confirmed": [
+    "BLE input was tested with active video on Type-C, DP and HDMI 2; the monitor OSD followed the selected input.",
+    "The USB hub moved to Type-B for DP and Type-C for Type-C in the tested two-computer setup.",
+    "Writing headphone volume 0 through vendor DDC C8 updated the OSD to 0 and muted the 3.5 mm output."
+  ],
+  "new_settings_need_visual_validation": [
+    "contrast",
+    "picture modes",
+    "HDR",
+    "lighting"
+  ],
+  "volume_known_stock_support": {
+    "DDC": "factory C8 confirmed physically at 0",
+    "BLE": false
+  },
+  "main_firmware_reference_sha256": "1183d96f63eedf321cf78ba3b84f8b097d68cbb95696457c415200a299dd26e3",
+  "palette_reference": "Official Android app view binding confirms 1=red 2=yellow 3=green 4=cyan 5=blue 6=purple 7=multicolour",
+  "lighting_power": {
+    "read_off": 1,
+    "read_on": 2,
+    "off_command": "EE 01 01",
+    "on_operation": "Reapply current effect with EE 04 xx, then independently read DE 01 00; EE 01 02 is not an implemented stock setter"
+  },
+  "split_front_rear_color_effect": 7,
+  "ddc_read_compatibility": "Persistent native IOAV session; strict validation; bounded independent retries; standard brightness only; latest absolute writes preempt background reads; preserve last confirmed cache on failure",
+  "default_channel": "DDC",
+  "automatic_transport_fallback": false,
+  "bluetooth_idle_disconnect_seconds": 300,
+  "statusbar_icon_only": true,
+  "DDC_input_values": {
+    "type_c": 7,
+    "dp": 8,
+    "hdmi_1": 5,
+    "hdmi_2": 6
+  },
+  "DDC_volume": {
+    "set_payload": "85 C8 00 62 00 value checksum",
+    "write_copies": 2,
+    "write_gap_ms": 50,
+    "maximum": 100,
+    "confirmed_OSD": 0,
+    "confirmed_headphones": "muted",
+    "automatic_increase": false
+  },
+  "channel_selection_reads": "first use, missing values, or reconnect",
+  "display_defaults": {
+    "luminance": 50,
+    "contrast": 50
+  },
+  "input_mapping_evidence": {
+    "DDC": "Model-specific VCP 0x60 values from the reference firmware.",
+    "BLE": "The monitor reports an input ID. Labels correspond to physical ports on the standard model.",
+    "HDMI_DDC_verification": "Both HDMI mappings were checked offline; physical video switching via DDC has not been confirmed."
+  },
+  "BLE_input_values": {
+    "type_c": 1,
+    "dp": 2,
+    "hdmi_1": 3,
+    "hdmi_2": 4
+  }
+}

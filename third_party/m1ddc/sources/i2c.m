@@ -1,0 +1,85 @@
+@import Foundation;
+
+#include "i2c.h"
+#include "utils.h"
+
+// Function to get ready for DDC operations for a specific display attribute
+DDCPacket createDDCPacket(UInt8 attrCode) {
+    DDCPacket packet = {};
+    packet.data[2] = attrCode;
+    packet.inputAddr = packet.data[2] == INPUT_ALT ? ALTERNATE_INPUT_ADDRESS : DEFAULT_INPUT_ADDRESS;
+    return packet;
+}
+
+// Prepare DDC packet for read
+void prepareDDCRead(DDCPacket *packet) {
+    UInt8* data = packet->data;
+    data[0] = 0x82;
+    data[1] = 0x01;
+    data[3] = 0x6E ^ packet->inputAddr ^ data[0] ^ data[1] ^ data[2];
+}
+
+// Prepare DDC packet for write
+void prepareDDCWrite(DDCPacket *packet, UInt16 newValue) {
+    UInt8* data = packet->data;
+    data[0] = 0x84;
+    data[1] = 0x03;
+    data[3] = (newValue) >> 8;
+    data[4] = newValue & 255;
+    data[5] = 0x6E ^ packet->inputAddr ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4];
+}
+
+
+IOReturn performDDCReadAtChipAddress(IOAVServiceRef avService, UInt32 chipAddress, DDCPacket *packet) {
+    memset(packet->data, 0, sizeof(UInt8) * DDC_BUFFER_SIZE);
+    usleep(chipAddress == DDC_CHIP_ADDRESS_MCDP29XX ? DDC_MCDP_READ_WAIT : DDC_WAIT);
+    return IOAVServiceReadI2C(avService, chipAddress, packet->inputAddr, packet->data, 12);
+}
+
+IOReturn performDDCWriteAtChipAddress(IOAVServiceRef avService, UInt32 chipAddress, DDCPacket *packet) {
+    IOReturn ret;
+
+    for (int i = 0; i < DDC_ITERATIONS; ++i) {
+        usleep(DDC_WAIT);
+        // The length byte, not the last nonzero byte, defines a DDC frame.
+        // A zero-valued checksum must still be transmitted.
+        if ((ret = IOAVServiceWriteI2C(avService, chipAddress, packet->inputAddr, packet->data, (packet->data[0] & 0x7f) + 2))) {
+            return ret;
+        }
+    }
+    return ret;
+}
+
+IOReturn performDDCRead(IOAVServiceRef avService, DDCPacket *packet) {
+    return performDDCReadAtChipAddress(avService, DDC_CHIP_ADDRESS_DEFAULT, packet);
+}
+
+IOReturn performDDCWrite(IOAVServiceRef avService, DDCPacket *packet) {
+    return performDDCWriteAtChipAddress(avService, DDC_CHIP_ADDRESS_DEFAULT, packet);
+}
+
+
+Boolean validDDCReply(const UInt8 *r, UInt8 requestedCode) {
+    UInt8 checksum = 0x50;
+    for (int i = 0; i < 11; i++) checksum ^= r[i];
+    return r[0] == 0x6e && r[1] == 0x88 && r[2] == 0x02 &&
+           r[4] == requestedCode && checksum == 0;
+}
+
+DDCValue convertI2CtoDDC(char *i2cBytes) {
+    DDCValue displayAttr = {};
+    NSData *i2cData = [NSData dataWithBytes:(const void *)i2cBytes length:(NSUInteger)11];
+    // DDC/CI "Get VCP Feature Reply": maximum value is in bytes [6..7] and the
+    // current value in bytes [8..9], both big-endian.
+    NSRange maxValueRange = {6, 2};
+    uint16_t maxValue = 0;
+    [[i2cData subdataWithRange:maxValueRange] getBytes:&maxValue length:sizeof(maxValue)];
+    displayAttr.maxValue = CFSwapInt16BigToHost(maxValue);
+
+    NSRange curValueRange = {8, 2};
+    uint16_t curValue = 0;
+    [[i2cData subdataWithRange:curValueRange] getBytes:&curValue length:sizeof(curValue)];
+    displayAttr.curValue = CFSwapInt16BigToHost(curValue);
+
+    return displayAttr;
+}

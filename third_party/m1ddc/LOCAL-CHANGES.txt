@@ -1,0 +1,6 @@
+Based on waydabber/m1ddc commit 3a21f7d83ec147ecb0bd6e0146cf3637dea64109 (2026-11-18).
+Local changes: validate DDC reply frame/result/VCP/checksum with bounded retries; decode exactly two bytes; preserve complete fixed-length writes; add explicit Save Current Settings opcode.
+Build: make
+Source: https://github.com/waydabber/m1ddc
+
+Menu-bar application integration (2026-11-19): Get VCP now makes at most five requests with a progressive extra 100/200/300/400/500 ms settle delay before reading. GM001J/M5 read-only tests showed intermittent stale EDID-like payloads and occasional valid CRC-checked brightness replies. No validation was relaxed and no new setting commands were added. This is a bounded compatibility retry, not proof the DDC transport is fully reliable.
