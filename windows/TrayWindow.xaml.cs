@@ -781,6 +781,19 @@ public partial class TrayWindow : Window
         }
     }
 
+    private void OpenGitHub(object sender, RoutedEventArgs args)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/WeeTom/redmagic-monitor-control") { UseShellExecute = true });
+        }
+        catch (Win32Exception error)
+        {
+            TrayLog.Write(error.Message);
+            MessageBox.Show(this, "无法使用默认浏览器打开项目仓库。", "GitHub", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private void OpenLog(object sender, RoutedEventArgs args)
     {
         try

@@ -194,6 +194,8 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          <Button Content="GitHub" ToolTip="在浏览器中打开项目仓库" Margin="0,3,0,0"
+                  Visibility="{Binding Visibility, ElementName=DonationCards}" Click="OpenGitHub"/>
           <StackPanel x:Name="BlePage" Visibility="Collapsed">
             <UniformGrid x:Name="BleInputs" Columns="4"/>
             <TextBlock x:Name="BleInputDetail" TextWrapping="Wrap" FontSize="12" Margin="2,6,2,0"

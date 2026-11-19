@@ -25,10 +25,27 @@ private struct DonationMethod: Identifiable {
 }
 
 struct DonationView: View {
+    private static let repositoryURL = URL(string: "https://github.com/WeeTom/redmagic-monitor-control")!
     private let gap: CGFloat = 10
     private let padding: CGFloat = 12
 
     var body: some View {
+        VStack(spacing: 0) {
+            paymentMethods
+            Link(destination: Self.repositoryURL) {
+                HStack(spacing: 5) {
+                    Text(verbatim: "GitHub")
+                    Image(systemName: "arrow.up.right").accessibilityHidden(true)
+                }
+            }
+            .buttonStyle(.bordered)
+            .help("在浏览器中查看项目源码")
+            .accessibilityLabel("在 GitHub 查看源码")
+            .padding(.bottom, padding)
+        }
+    }
+
+    private var paymentMethods: some View {
         GeometryReader { area in
             let count = CGFloat(DonationMethod.all.count)
             let available = area.size.height - 2 * padding - (count - 1) * gap
