@@ -115,6 +115,25 @@ struct ControlPanel: View {
             Divider()
             if store.showingDonations {
                 DonationView()
+            } else if store.needsBinding {
+                ScrollView {
+                    SettingsCard(title: tr("显示器"), symbol: "display") {
+                        if !store.bindingOptions.isEmpty {
+                            ForEach(store.bindingOptions, id: \.self) { identifier in
+                                Button("GM001J · " + identifier) { store.chooseMonitor(identifier) }
+                                    .buttonStyle(.link)
+                            }
+                        }
+                        Button(tr("重新搜索")) { store.discoverMonitor() }
+                            .disabled(store.discovering)
+                        if store.selectingReplacement {
+                            Button(tr("取消")) { store.endSelection() }
+                        }
+                    }
+                    .padding(.horizontal, PanelLayout.margin)
+                    .padding(.vertical, 12)
+                }
+                .scrollBounceBehavior(.basedOnSize)
             } else {
                 ViewThatFits(in: .vertical) {
                     settings.fixedSize(horizontal: false, vertical: true)
@@ -227,15 +246,17 @@ struct ControlPanel: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
-            if !isDDC {
+            if !isDDC && !store.needsBinding {
                 Button(store.bluetoothConnected ? tr("断开") : tr("连接并读取")) {
                     if store.bluetoothConnected { store.disconnectBluetooth() } else { store.refresh() }
                 }
                 .disabled(!store.bluetoothConnected && store.pendingBLE > 0)
                 .help(tr("蓝牙空闲 5 分钟后自动断开"))
             }
-            Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                .accessibilityLabel(tr("刷新当前页面")).help(tr("重新读取当前通道的设置"))
+            if !store.needsBinding {
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                    .accessibilityLabel(tr("刷新当前页面")).help(tr("重新读取当前通道的设置"))
+            }
         }
         .controlSize(.small)
         .frame(minHeight: 30)
@@ -300,29 +321,30 @@ struct ControlPanel: View {
     @MainActor
     private func exportShortcut(for port: MonitorInput) {
         Task { @MainActor in
-            let serial = MonitorIdentity.serial
-            let address = MonitorIdentity.address
+            let initial = ShortcutExportTarget(serial: store.bindings.serial, address: store.bindings.address)
             do {
-                guard !serial.isEmpty || address != nil else {
-                    throw DisplayError(tr("请先绑定显示器的 DDC 序列号或蓝牙地址，然后重新打开红魔显示器。"))
+                guard !initial.serial.isEmpty || initial.address != nil else {
+                    throw DisplayError(tr("请先识别显示器后再试。"))
                 }
                 let panel = NSSavePanel()
                 panel.title = tr("导出快捷方式应用")
-                let route: String
-                if serial.isEmpty { route = tr("通过蓝牙切源。") }
-                else if address == nil { route = tr("通过 DDC 切源。配置显示器蓝牙地址后可导出支持自动回退的版本。") }
-                else { route = tr("优先使用 DDC，必要时自动尝试蓝牙。") }
-                panel.message = tr("目标接口为 %@。%@", port.name, route)
+                let discovery = ShortcutExportDiscovery(target: initial)
+                defer { discovery.cancel() }
+                discovery.onMessage = { [weak panel] route in
+                    panel?.message = tr("目标接口为 %@。%@", port.name, route)
+                }
                 panel.prompt = tr("导出")
                 panel.allowedContentTypes = [.applicationBundle]
                 panel.canCreateDirectories = true
                 panel.isExtensionHidden = false
                 panel.nameFieldStringValue = tr("切换到%@.app", port.name)
                 NSApp.activate()
+                discovery.start()
                 guard await panel.begin() == .OK, let destination = panel.url else { return }
                 let replaceExisting = FileManager.default.fileExists(atPath: destination.path)
+                let target = await discovery.targetForExport()
                 try await Task.detached(priority: .userInitiated) {
-                    try InputShortcutExporter.export(port: port, serial: serial, bluetoothAddress: address, to: destination,
+                    try InputShortcutExporter.export(port: port, serial: target.serial, bluetoothAddress: target.address, to: destination,
                                                      replaceExisting: replaceExisting)
                 }.value
                 NSWorkspace.shared.activateFileViewerSelecting([destination])
@@ -370,9 +392,9 @@ struct ControlPanel: View {
                 .help(tr("通过 DDC 将亮度和对比度各设为 50"))
             Text(tr("亮度 50 · 对比度 50")).font(.system(size: 10)).foregroundStyle(.secondary)
         }
-        .opacity(store.showingDonations ? 0 : 1)
-        .disabled(store.showingDonations)
-        .accessibilityHidden(store.showingDonations)
+        .opacity(store.showingDonations || store.needsBinding ? 0 : 1)
+        .disabled(store.showingDonations || store.needsBinding)
+        .accessibilityHidden(store.showingDonations || store.needsBinding)
     }
 
     private var appActions: some View {

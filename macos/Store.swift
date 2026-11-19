@@ -18,7 +18,7 @@ protocol DisplayBluetooth: AnyObject {
 extension BluetoothController: DisplayBluetooth {}
 
 private struct DeviceCache:Codable {
-    var serial=MonitorIdentity.cacheKey
+    var serial: String
     var ddc=[String:Int](),ble=[String:Int](),dates=[String:Date]()
 }
 private extension ControlChannel {
@@ -31,7 +31,9 @@ private struct PreviousStatus: Decodable {
 
 final class DisplayStore:ObservableObject {
     @Published var channel=ControlChannel.ddc
-    @Published var showingDonations = false
+    @Published var showingDonations = false {
+        didSet { if showingDonations { cancelDiscovery() } }
+    }
     @Published var values=[Feature:Int]()
     @Published var ddcValues=[String:Int]()
     @Published var ddcDrafts=[String:Int]()
@@ -52,7 +54,27 @@ final class DisplayStore:ObservableObject {
     @Published var lastRefresh:Date?
     let log=EventLog()
     let demo:Bool
-    private let cacheURL:URL?
+    let bindings: MonitorBindings
+    private let explicitCacheURL: URL?
+    private var cacheURL: URL? {
+        guard !demo else { return nil }
+        return explicitCacheURL ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/RedMagicDisplay/cache-\(bindings.cacheKey).json")
+    }
+    private let scanDDC: (() -> DDCDiscoveryResult)?
+    private let usesSystemBluetooth: Bool
+    @Published private(set) var bindingOptions = [String]()
+    @Published private(set) var discovering = false
+    @Published private(set) var selectingReplacement = false
+    var onMonitorReplaced: (() -> Void)?
+    private var discoveryID = UUID()
+    private var bluetoothDiscovery: MonitorDiscovery?
+    private var attemptedDiscovery: ControlChannel?
+    var needsBinding: Bool {
+        guard !demo else { return false }
+        if selectingReplacement { return true }
+        return channel == .ddc ? (scanDDC != nil && bindings.serial.isEmpty) : (usesSystemBluetooth && bindings.address == nil)
+    }
     private let channelDefaults: UserDefaults?
     private static let channelPreferenceKey = "lastControlChannel"
     var statusURL: URL {
@@ -78,7 +100,7 @@ final class DisplayStore:ObservableObject {
     private var reportStatus=true
     lazy var bluetooth:DisplayBluetooth = {
         bluetoothCreated=true
-        let b = injectedBluetooth ?? BluetoothController(log:log)
+        let b = injectedBluetooth ?? BluetoothController(log:log, address: bindings.address)
         b.onState={ [weak self] text in self?.bluetoothStatus=text }
         b.onConnection={ [weak self] connected in
             guard let self else { return }
@@ -93,12 +115,12 @@ final class DisplayStore:ObservableObject {
     }()
     lazy var ddc:DDCController = {
         ddcCreated=true
-        let d=injectedDDC ?? DDCController(log:log)
+        let d=injectedDDC ?? DDCController(log:log, transport: NativeDDCTransport(serial: bindings.serial))
         d.onActivity={ [weak self] active in self?.ddcBusy=active;self?.changed();self?.finishRefresh() }
         return d
     }()
     var onRefreshComplete:(()->Void)?
-    var busy:Bool { pendingBLE>0 || ddcBusy || !ddcReading.isEmpty || !ddcWriting.isEmpty }
+    var busy:Bool { discovering || pendingBLE>0 || ddcBusy || !ddcReading.isEmpty || !ddcWriting.isEmpty }
     var inputBusy:Bool { ddcWriting.contains("input") || bleWriting.contains(.input) }
     var inputMismatch: (active: String, menu: String)? {
         let menuKey = "b:\(Feature.input.rawValue)"
@@ -112,15 +134,18 @@ final class DisplayStore:ObservableObject {
     }
     init(demo:Bool=false,ddc:DDCController?=nil,bluetooth:DisplayBluetooth?=nil,cacheURL:URL?=nil,loadCache:Bool=true,
          channelDefaults: UserDefaults? = nil, previousStatusURL: URL? = nil,
+         bindings: MonitorBindings = MonitorIdentity.bindings, scanDDC: (() -> DDCDiscoveryResult)? = nil,
          now: @escaping () -> Date = Date.init, canSyncMenu: (() -> Bool)? = nil) {
         self.now = now
-        let usesSystemTransports = ddc == nil && bluetooth == nil
+        self.bindings = bindings
+        self.scanDDC = scanDDC ?? (ddc == nil && bluetooth == nil ? DDCDiscovery.scan : nil)
+        self.usesSystemBluetooth = ddc == nil && bluetooth == nil
         self.canSyncMenu = canSyncMenu ?? {
-            usesSystemTransports && MonitorIdentity.address != nil && CBManager.authorization == .allowedAlways
+            ddc == nil && bluetooth == nil && bindings.address != nil && CBManager.authorization == .allowedAlways
         }
         self.channelDefaults = demo ? nil : channelDefaults
         self.demo=demo;self.injectedDDC=ddc;self.injectedBluetooth=bluetooth;self.reportStatus=ddc==nil && bluetooth==nil
-        self.cacheURL=demo ? nil : (cacheURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/RedMagicDisplay/cache-\(MonitorIdentity.cacheKey).json"))
+        self.explicitCacheURL = cacheURL
         if let defaults = self.channelDefaults {
             channel = Self.initialChannel(defaults: defaults,
                                           previousStatus: previousStatusURL ?? log.directory.appendingPathComponent("latest-status.json"))
@@ -130,7 +155,7 @@ final class DisplayStore:ObservableObject {
             values=[.input:1,.mode:7,.hdr:2,.lightPower:1,.lightColor:7,.lightLevel:1,.lightEffect:2]
             ddcValues=["input":7,"luminance":81,"contrast":50,"volume":0]
             ddcStatus="DDC · Type-C";bluetoothStatus=tr("蓝牙已连接 · Type-C");bluetoothConnected=true;lastRefresh=Date()
-        } else if loadCache,let url=self.cacheURL,let data=try? Data(contentsOf:url),let c=try? JSONDecoder().decode(DeviceCache.self,from:data),c.serial==MonitorIdentity.cacheKey {
+        } else if loadCache,let url=self.cacheURL,let data=try? Data(contentsOf:url),let c=try? JSONDecoder().decode(DeviceCache.self,from:data),c.serial==bindings.cacheKey {
             ddcValues=c.ddc.filter { Self.ddcFeatures.contains($0.key) && (0...100).contains($0.value) }
             for (k,v) in c.ble { if let id=Int32(k),let f=Feature(rawValue:id),f != .volume,gm_value_valid(f.rawValue,Int32(v),0) != 0 { values[f]=v } }
             dates=c.dates;stale=Set(ddcValues.keys.map { "d:"+$0 }+values.keys.map { "b:\($0.rawValue)" })
@@ -163,7 +188,7 @@ final class DisplayStore:ObservableObject {
     }
     private func persist() {
         guard !demo,let cacheURL else { return }
-        let c=DeviceCache(ddc:ddcValues,ble:Dictionary(uniqueKeysWithValues:values.map { (String($0.key.rawValue),$0.value) }),dates:dates)
+        let c=DeviceCache(serial: bindings.cacheKey, ddc:ddcValues,ble:Dictionary(uniqueKeysWithValues:values.map { (String($0.key.rawValue),$0.value) }),dates:dates)
         guard let data=try? JSONEncoder().encode(c) else { return }
         persistence.async {
             try? FileManager.default.createDirectory(at:cacheURL.deletingLastPathComponent(),withIntermediateDirectories:true)
@@ -183,9 +208,99 @@ final class DisplayStore:ObservableObject {
             refreshRequested=false;onRefreshComplete?()
         }
     }
+    func selectAnotherMonitor() {
+        guard !busy, !inputBusy, !isResettingDefaults, !demo else { return }
+        showingDonations = false
+        cancelDiscovery()
+        selectingReplacement = channel == .ddc ? !bindings.serial.isEmpty : bindings.address != nil
+        discoverMonitor()
+    }
+
+    func endSelection() {
+        cancelDiscovery()
+        loadSelectedChannelIfNeeded()
+    }
+
+    private func cancelDiscovery() {
+        selectingReplacement = false
+        discoveryID = UUID()
+        bluetoothDiscovery?.cancel()
+        bluetoothDiscovery = nil
+        bindingOptions = []
+        discovering = false
+        attemptedDiscovery = nil
+    }
+
+    func discoverMonitor() {
+        guard needsBinding, !discovering else { return }
+        attemptedDiscovery = channel
+        discovering = true
+        bindingOptions = []
+        let request = UUID()
+        discoveryID = request
+        if channel == .ddc, let scanDDC {
+            ddcStatus = tr("正在寻找显示器…")
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let result = scanDDC()
+                DispatchQueue.main.async { [weak self] in
+                    self?.finishDiscovery(request, options: result.serials, observed: result.matchedCount)
+                }
+            }
+        } else {
+            bluetoothStatus = tr("正在寻找显示器…")
+            let discovery = MonitorDiscovery()
+            bluetoothDiscovery = discovery
+            discovery.start { [weak self] result in
+                switch result {
+                case .success(let found):
+                    self?.finishDiscovery(request, options: found.candidates.map(\.addressString), observed: found.observedCount)
+                case .failure(let error):
+                    self?.finishDiscovery(request, options: [], observed: 0, error: error)
+                }
+            }
+        }
+    }
+
+    private func finishDiscovery(_ request: UUID, options: [String], observed: Int, error: Error? = nil) {
+        guard discoveryID == request else { return }
+        discovering = false
+        bluetoothDiscovery = nil
+        bindingOptions = options
+        if !selectingReplacement, observed == 1, let only = options.first, options.count == 1 {
+            chooseMonitor(only)
+            return
+        }
+        let status = error?.localizedDescription ?? (options.isEmpty
+            ? tr("未找到可识别的 GM001J，请检查连接后重新搜索。") : tr("选择要控制的显示器"))
+        if channel == .ddc { ddcStatus = status } else { bluetoothStatus = status }
+        changed()
+        finishRefresh()
+    }
+
+    func chooseMonitor(_ identifier: String) {
+        guard bindingOptions.contains(identifier), !discovering else { return }
+        if selectingReplacement {
+            selectingReplacement = false
+            let unchanged = channel == .ddc ? identifier == bindings.serial : MonitorIdentity.parseAddress(identifier) == bindings.address
+            if !unchanged, let onMonitorReplaced {
+                stop()
+                bindings.replaceMonitor(with: identifier, on: channel)
+                onMonitorReplaced()
+                return
+            }
+        }
+        bindings.bindIfMissing(identifier, to: channel)
+        guard !needsBinding else { return }
+        bindingOptions = []
+        persist()
+        loadSelectedChannelIfNeeded()
+    }
+
     func start() { loadSelectedChannelIfNeeded() }
     func panelOpened() {
-        if !showingDonations { loadSelectedChannelIfNeeded() }
+        guard !showingDonations else { return }
+        if needsBinding && !discovering && bindingOptions.isEmpty { attemptedDiscovery = nil }
+        loadSelectedChannelIfNeeded()
     }
 
     func selectChannel(_ selected: ControlChannel) {
@@ -195,6 +310,7 @@ final class DisplayStore:ObservableObject {
             if returning { loadSelectedChannelIfNeeded() }
             return
         }
+        cancelDiscovery()
         channel = selected
         channelDefaults?.set(selected.preferenceName, forKey: Self.channelPreferenceKey)
         message = ""
@@ -204,6 +320,10 @@ final class DisplayStore:ObservableObject {
 
     private func loadSelectedChannelIfNeeded() {
         guard !demo else { return }
+        if needsBinding {
+            if attemptedDiscovery != channel { discoverMonitor() }
+            return
+        }
         // An external host can change the input while this popover is closed.
         // Revisit only that setting on a warm connection and coalesce rapid opens.
         let checkInput = !inputBusy && now().timeIntervalSince(lastInputRead[channel] ?? .distantPast) >= Self.inputCheckInterval
@@ -241,16 +361,19 @@ final class DisplayStore:ObservableObject {
     }
 
     func refresh() {
-        guard !demo else { return }
-        message="";refreshRequested=true;buildingBatch=true
+        guard !demo, !showingDonations else { return }
+        message = ""
+        refreshRequested = true
+        if needsBinding { discoverMonitor(); return }
+        buildingBatch = true
         if channel == .ddc { refreshDDC(Self.ddcFeatures) }
         else { Self.bluetoothFeatures.forEach { readBluetooth($0, onlyMissing: false) } }
         buildingBatch=false;finishRefresh()
     }
     private func refreshDDC(_ features:[String]) {
         guard !demo else { return }
-        guard injectedDDC != nil || !MonitorIdentity.serial.isEmpty else {
-            ddcStatus=tr("请配置显示器 MonitorSerial 并重启应用"); changed(); return
+        guard injectedDDC != nil || !bindings.serial.isEmpty else {
+            ddcStatus=tr("请先识别显示器后再试。"); changed(); return
         }
         for f in features where !ddcReading.contains(f) && !ddcWriting.contains(f) {
             if f == "input" {
@@ -279,8 +402,8 @@ final class DisplayStore:ObservableObject {
         if value==nil && (bleReading.contains(f) || bleWriting.contains(f)) { return }
         if f == .input && value == nil && inputBusy { return }
         if demo { if let value { values[f]=value };completion?();changed();return }
-        guard injectedBluetooth != nil || MonitorIdentity.address != nil else {
-            bluetoothStatus=tr("请配置显示器 BluetoothAddress 并重启应用"); changed(); return
+        guard injectedBluetooth != nil || bindings.address != nil else {
+            bluetoothStatus=tr("请先识别显示器后再试。"); changed(); return
         }
         let generation:Int
         if let value {
@@ -428,8 +551,8 @@ final class DisplayStore:ObservableObject {
 
     private func writeDDC(_ feature: String, value: Int, completion: @escaping DDCController.Completion) {
         if demo { ddcValues[feature] = value; completion(.success(value)); changed(); return }
-        guard injectedDDC != nil || !MonitorIdentity.serial.isEmpty else {
-            completion(.failure(DisplayError(tr("请配置显示器 MonitorSerial 并重启应用")))); return
+        guard injectedDDC != nil || !bindings.serial.isEmpty else {
+            completion(.failure(DisplayError(tr("请先识别显示器后再试。")))); return
         }
         ddcGeneration[feature, default: 0] += 1
         let generation = ddcGeneration[feature]
@@ -475,6 +598,7 @@ final class DisplayStore:ObservableObject {
         } catch { message=tr("登录项设置失败：%@", error.localizedDescription) }
     }
     func stop() {
+        cancelDiscovery()
         inputIntent += 1
         confirmedDDCThisSession.removeAll()
         if !demo { if bluetoothCreated { bluetooth.stop() };if ddcCreated { ddc.invalidate() } }

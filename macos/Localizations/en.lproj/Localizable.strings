@@ -174,3 +174,15 @@
 "快捷方式签名校验失败。%@" = "Shortcut signature verification failed. %@";
 "通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。" = "Connects to your REDMAGIC monitor over Bluetooth to switch inputs, read its status, and adjust supported picture and lighting settings.";
 "连接红魔显示器并控制输入源及已支持的设置。" = "Connects to your REDMAGIC monitor to control its input and other supported settings.";
+"未找到可识别的 GM001J，请检查连接后重新搜索。" = "No GM001J could be identified. Check the connection and search again.";
+"选择要控制的显示器" = "Choose a monitor to control";
+"显示器" = "Monitor";
+"重新搜索" = "Search again";
+"请先识别显示器后再试。" = "Identify the monitor first, then try again.";
+"正在检查另一种连接。若发现多台显示器，本次仅使用%@。需要双通道时，请先在%@页选择目标再导出。" = "Checking the other connection. If multiple monitors are found, this export will use %@ only. To use both, select the monitor on the %@ tab before exporting.";
+"发现多台显示器，本次仅使用%@。请在%@页选择目标后重新导出。" = "Multiple monitors found. This export will use %@ only. Select the monitor on the %@ tab and export again to use both connections.";
+"未能同时验证两个通道，本次仅使用%@。" = "Couldn’t verify both connections. This export will use %@ only.";
+"正在识别显示器…" = "Identifying monitor…";
+"识别结束后将自动导出，也可以立即使用%@导出。" = "Export will continue automatically after identification. You can export now using %@ only.";
+"立即使用%@导出" = "Export now with %@";
+"取消" = "Cancel";

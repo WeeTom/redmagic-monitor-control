@@ -24,6 +24,7 @@ private func spin(_ seconds:TimeInterval=6,until predicate:()->Bool) {
     precondition(predicate(),"Timed out awaiting test condition")
 }
 func runSelfTests() {
+    checkShortcutIdentityDiscovery()
     for (s,v) in ["0":0,"100":100," 42\n":42] { precondition(DDCController.parse(s)==v) }
     for s in ["101","-1","10 error","","0x10","1\n2","９"] { precondition(DDCController.parse(s)==nil) }
     for value in 0...100 { precondition(DDCController.canWrite("volume",value)) }
@@ -129,4 +130,35 @@ func runSelfTests() {
     print("PASS: strict standard/vendor DDC frames, DDC volume 0–100, RGB controls removed, 300s idle boundary")
     print("PASS: latest write wins, read preemption, two independent readbacks, stale callbacks ignored")
     print("PASS: cached values survive failures; unconfirmed targets are not persisted; 200 page switches \(Int(channelSeconds*1000)) ms while a background read was pending")
+}
+
+private func checkShortcutIdentityDiscovery() {
+    let address = Data([1, 2, 3, 4, 5, 6])
+    let ddc = DDCDiscoveryResult(serials: ["Fixture"], matchedCount: 1)
+    let candidate = MonitorDiscovery.Candidate(id: UUID(), name: "GM001J", address: address)
+    let bluetooth = MonitorDiscovery.Scan(candidates: [candidate], observedCount: 1)
+    let dual = ShortcutExportTarget(serial: "Fixture", address: address)
+    let withDDC = ShortcutExportTarget(serial: "Fixture", address: nil)
+    let withBluetooth = ShortcutExportTarget(serial: "", address: address)
+
+    for original in [withDDC, withBluetooth] {
+        precondition(original.addingUniquePeer(ddc: ddc, bluetooth: bluetooth) == dual)
+        for other in [DDCDiscoveryResult(serials: ["Fixture"], matchedCount: 2),
+                      DDCDiscoveryResult(serials: [], matchedCount: 0)] {
+            precondition(original.addingUniquePeer(ddc: other, bluetooth: bluetooth) == original)
+        }
+        for other in [MonitorDiscovery.Scan(candidates: [candidate], observedCount: 2),
+                      MonitorDiscovery.Scan(candidates: [], observedCount: 1)] {
+            precondition(original.addingUniquePeer(ddc: ddc, bluetooth: other) == original)
+        }
+    }
+    // An already-bound monitor may have left the desk. Do not enroll its replacement
+    // as a second transport just because only one unit is now in range.
+    let otherDDC = DDCDiscoveryResult(serials: ["Other"], matchedCount: 1)
+    precondition(withDDC.addingUniquePeer(ddc: otherDDC, bluetooth: bluetooth) == withDDC)
+    let otherAddress = ShortcutExportTarget(serial: "", address: Data(repeating: 2, count: 6))
+    precondition(otherAddress.addingUniquePeer(ddc: ddc, bluetooth: bluetooth) == otherAddress)
+    precondition(dual.addingUniquePeer(ddc: otherDDC, bluetooth: bluetooth) == dual)
+    let empty = ShortcutExportTarget(serial: "", address: nil)
+    precondition(empty.addingUniquePeer(ddc: ddc, bluetooth: bluetooth) == empty)
 }

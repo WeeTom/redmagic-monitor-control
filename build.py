@@ -40,7 +40,7 @@ run('swiftc',ROOT/'assets/Icon.swift','-o',BUILD/'IconBuilder')
 run(BUILD/'IconBuilder',BUILD/'AppIcon.iconset')
 run('iconutil','-c','icns',BUILD/'AppIcon.iconset','-o',APP/'Contents/Resources/AppIcon.icns')
 info={'CFBundleName':'红魔显示器','CFBundleDisplayName':'红魔显示器','CFBundleIdentifier':'com.local.redmagic-display',
-      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'1.0.0','CFBundleVersion':'16','CFBundleDevelopmentRegion':'en',
+      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'1.0.0','CFBundleVersion':'17','CFBundleDevelopmentRegion':'en',
       'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True,'NSPrincipalClass':'NSApplication','CFBundleIconFile':'AppIcon',
       'NSBluetoothAlwaysUsageDescription':'通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。',
       'NSBluetoothPeripheralUsageDescription':'连接红魔显示器并控制输入源及已支持的设置。'}

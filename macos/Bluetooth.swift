@@ -1,6 +1,16 @@
 import Foundation
 import CoreBluetooth
 
+// Both read-only discovery and the control connection identify the same GATT profile.
+enum GM001JGATT {
+    static let model = "REDMAGIC GM001J"
+    static let control = CBUUID(string: "0000E0FF-3C17-D293-8E48-14FE2E4DA212")
+    static let identification = CBUUID(string: "0000D0FF-3C17-D293-8E48-14FE2E4DA212")
+    static let transmit = CBUUID(string: "FFE1")
+    static let receive = CBUUID(string: "FFE2")
+    static let address = CBUUID(string: "FFD2")
+}
+
 final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate {
     struct Job {
         let feature:Feature
@@ -8,8 +18,8 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         let reapply:Bool
         let completion:(Result<Int,Error>)->Void
     }
-    let service=CBUUID(string:"0000E0FF-3C17-D293-8E48-14FE2E4DA212")
-    let identityService=CBUUID(string:"0000D0FF-3C17-D293-8E48-14FE2E4DA212")
+    let service=GM001JGATT.control
+    let identityService=GM001JGATT.identification
     private let expectedMAC: Data?
     private let addressSuffix: String
     private var peripheralKey: String { "verifiedPeripheral." + addressSuffix }
@@ -53,7 +63,7 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     }
     func submit(_ feature:Feature,value:Int?=nil,reapply:Bool=false,completion:@escaping(Result<Int,Error>)->Void) {
         guard expectedMAC != nil else {
-            completion(.failure(DisplayError(tr("请配置显示器 BluetoothAddress 并重启应用")))); return
+            completion(.failure(DisplayError(tr("请先识别显示器后再试。")))); return
         }
         if let value,gm_value_valid(feature.rawValue,Int32(value),1)==0 {
             completion(.failure(DisplayError(tr("该设置值不受支持"))));return
@@ -206,7 +216,7 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         if matchesName(name) { connect(p) }
     }
     private func matchesName(_ name:String?) -> Bool {
-        !addressSuffix.isEmpty && name?.uppercased() == "REDMAGIC GM001J" + addressSuffix
+        !addressSuffix.isEmpty && name?.uppercased() == GM001JGATT.model + addressSuffix
     }
     func centralManager(_ central:CBCentralManager,didConnect p:CBPeripheral) {
         guard p===peripheral,active != nil else { central.cancelPeripheralConnection(p);return }
@@ -238,15 +248,15 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         guard error==nil,let services=p.services,services.contains(where:{$0.uuid==service}),services.contains(where:{$0.uuid==identityService}) else { failAll(tr("显示器缺少所需的蓝牙服务"));return }
         let required=services.filter { $0.uuid==service || $0.uuid==identityService }
         discovery=Set(required.map { $0.uuid.uuidString })
-        for s in required { p.discoverCharacteristics(s.uuid==service ? [CBUUID(string:"FFE1"),CBUUID(string:"FFE2")] : [CBUUID(string:"FFD2")],for:s) }
+        for s in required { p.discoverCharacteristics(s.uuid==service ? [GM001JGATT.transmit,GM001JGATT.receive] : [GM001JGATT.address],for:s) }
     }
     func peripheral(_ p:CBPeripheral,didDiscoverCharacteristicsFor s:CBService,error:Error?) {
         guard p===peripheral,stage=="discovering" else { return }
         guard error==nil else { failAll(tr("读取蓝牙特征失败"));return }
         for c in s.characteristics ?? [] {
-            if s.uuid==service,c.uuid==CBUUID(string:"FFE1") { tx=c }
-            if s.uuid==service,c.uuid==CBUUID(string:"FFE2") { rx=c }
-            if s.uuid==identityService,c.uuid==CBUUID(string:"FFD2") { identity=c }
+            if s.uuid==service,c.uuid==GM001JGATT.transmit { tx=c }
+            if s.uuid==service,c.uuid==GM001JGATT.receive { rx=c }
+            if s.uuid==identityService,c.uuid==GM001JGATT.address { identity=c }
         }
         discovery.remove(s.uuid.uuidString)
         if discovery.isEmpty {

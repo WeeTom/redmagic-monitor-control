@@ -1,12 +1,42 @@
 @import Foundation;
 #include <sys/file.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <unistd.h>
 #include "DDCNative.h"
+#import "DDCDiscovery.h"
 #include "TargetDisplay.h"
 #include "i2c.h"
 
 struct GMDDCSession { IOAVServiceRef service; io_service_t proxy; uint32_t chip; int lock; };
+
+// Identification needs the whole enumeration so a truncated duplicate cannot look unique.
+static AVServiceInfos *allSinks(int *count) {
+    *count = 0;
+    for (int capacity = 16; capacity <= INT_MAX / 2; capacity *= 2) {
+        AVServiceInfos *infos = calloc((size_t)capacity, sizeof(*infos));
+        if (!infos) return NULL;
+        int found = getAVServiceInfos(infos, capacity);
+        if (found < capacity) { *count = found; return infos; }
+        releaseAVServiceInfos(infos, found);
+        free(infos);
+    }
+    return NULL;
+}
+
+static void releaseSinks(AVServiceInfos *infos, int count) {
+    releaseAVServiceInfos(infos, count);
+    free(infos);
+}
+
+NSArray<NSString *> *GMDDCDiscoverSerials(NSInteger *matchedCount) {
+    int count;
+    AVServiceInfos *infos = allSinks(&count);
+    NSArray<NSString *> *serials = GMBindableSerials(infos, count, matchedCount);
+    releaseSinks(infos, count);
+    return serials;
+}
+
 static int readable(uint8_t f) {
     return f==0x10 || f==0x12 || f==0x60 || f==0x62;
 }
@@ -19,16 +49,16 @@ GMDDCSession *gm_ddc_open(void) { @autoreleasepool {
 }}
 GMDDCSession *gm_ddc_open_for_serial(const char *serial) { @autoreleasepool {
     if (!serial || !*serial) return NULL;
-    AVServiceInfos infos[16]={};int n=getAVServiceInfos(infos,16);
+    int n;AVServiceInfos *infos=allSinks(&n);
     AVServiceInfos *selected=GMFindTarget(infos,n,[NSString stringWithUTF8String:serial]);
-    if(!selected){releaseAVServiceInfos(infos,n);return NULL;}
+    if(!selected){releaseSinks(infos,n);return NULL;}
     DDCTransport t=getAVServiceDDCTransport(selected);
-    if(!t.service){releaseAVServiceInfos(infos,n);return NULL;}
+    if(!t.service){releaseSinks(infos,n);return NULL;}
     GMDDCSession *s=calloc(1,sizeof(*s));
-    if(!s){CFRelease(t.service);releaseAVServiceInfos(infos,n);return NULL;}
+    if(!s){CFRelease(t.service);releaseSinks(infos,n);return NULL;}
     s->lock=-1;
     s->service=t.service;s->proxy=selected->proxy;s->chip=t.chipAddress;
-    IOObjectRetain(s->proxy);releaseAVServiceInfos(infos,n);
+    IOObjectRetain(s->proxy);releaseSinks(infos,n);
     NSString *folder=[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/com.local.redmagic-display"];
     [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
     s->lock=open([[folder stringByAppendingPathComponent:@"ddc.lock"] fileSystemRepresentation],O_CREAT|O_RDWR,0600);

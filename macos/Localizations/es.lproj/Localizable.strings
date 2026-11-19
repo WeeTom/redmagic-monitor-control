@@ -174,3 +174,15 @@
 "快捷方式签名校验失败。%@" = "No se pudo verificar la firma del atajo. %@";
 "通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。" = "Se conecta por Bluetooth a tu monitor REDMAGIC para cambiar de entrada, leer su estado y ajustar la imagen y la iluminación compatibles.";
 "连接红魔显示器并控制输入源及已支持的设置。" = "Se conecta al monitor REDMAGIC para controlar la entrada y los ajustes compatibles.";
+"未找到可识别的 GM001J，请检查连接后重新搜索。" = "No se ha identificado ningún GM001J. Comprueba la conexión y vuelve a buscar.";
+"选择要控制的显示器" = "Elige el monitor que quieres controlar";
+"显示器" = "Monitor";
+"重新搜索" = "Volver a buscar";
+"请先识别显示器后再试。" = "Primero identifica el monitor y vuelve a intentarlo.";
+"正在检查另一种连接。若发现多台显示器，本次仅使用%@。需要双通道时，请先在%@页选择目标再导出。" = "Comprobando la otra conexión. Si se detectan varios monitores, se usará solo %@. Para usar ambas conexiones, elige el monitor en la pestaña %@ antes de exportar.";
+"发现多台显示器，本次仅使用%@。请在%@页选择目标后重新导出。" = "Se han encontrado varios monitores. Se usará solo %@. Selecciona el monitor en la pestaña %@ y vuelve a exportar.";
+"未能同时验证两个通道，本次仅使用%@。" = "No se han podido verificar ambas conexiones. Se usará solo %@.";
+"正在识别显示器…" = "Identificando el monitor…";
+"识别结束后将自动导出，也可以立即使用%@导出。" = "La exportación continuará automáticamente tras la identificación. También puedes exportar ahora usando solo %@.";
+"立即使用%@导出" = "Exportar ahora con %@";
+"取消" = "Cancelar";

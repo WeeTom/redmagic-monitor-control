@@ -91,9 +91,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
             button.sendAction(on:[.leftMouseUp,.rightMouseUp]);button.toolTip=tr("红魔显示器 · 输入源与画面控制")
         }
         popover.behavior = .transient
-        let host = NSHostingController(rootView: ControlPanel(store: store))
-        host.sizingOptions = []
-        popover.contentViewController = host
+        attachStore()
         NotificationCenter.default.addObserver(self, selector: #selector(screenChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         DistributedNotificationCenter.default().addObserver(self,selector:#selector(show),name:showNotification,object:nil)
@@ -102,11 +100,30 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
         store.start()
         DispatchQueue.main.asyncAfter(deadline:.now()+0.7) { [weak self] in self?.show() }
     }
+    private func attachStore() {
+        store.onMonitorReplaced = { [weak self] in
+            guard let self else { return }
+            self.store = DisplayStore(channelDefaults: .standard)
+            self.attachStore()
+            self.store.start()
+        }
+        let host = NSHostingController(rootView: ControlPanel(store: store))
+        host.sizingOptions = []
+        popover.contentViewController = host
+    }
+
+    @objc private func selectMonitor() {
+        store.selectAnotherMonitor()
+        show()
+    }
+
     @objc func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu=NSMenu()
             menu.addItem(withTitle:tr("打开红魔显示器"),action:#selector(show),keyEquivalent:"").target=self
             menu.addItem(withTitle:tr("刷新设置"),action:#selector(refresh),keyEquivalent:"").target=self
+            let choose = menu.addItem(withTitle: tr("选择要控制的显示器"), action: #selector(selectMonitor), keyEquivalent: "")
+            choose.target = self
             menu.addItem(.separator());menu.addItem(withTitle:tr("退出"),action:#selector(quit),keyEquivalent:"q").target=self
             statusItem.menu=menu;statusItem.button?.performClick(nil);statusItem.menu=nil
         } else if popover.isShown { popover.performClose(nil) } else { show() }

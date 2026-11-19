@@ -73,6 +73,7 @@ func runStoreActivationTests() {
         precondition(!store.busy && !store.isResettingDefaults)
     }
     testChannelPreference(awaitIdle: awaitIdle)
+    testDiscoveryOnFirstUse(awaitIdle: awaitIdle)
     let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: cache) }
     let bluetooth = StoreTestBluetooth()
@@ -232,4 +233,71 @@ private func testChannelPreference(awaitIdle: (DisplayStore) -> Void) {
     precondition(launch(defaults).channel == .ddc)
     precondition(transport.writes.isEmpty && bluetooth.settingWriteCount == 0)
     print("PASS: first launch, selection restored in both directions, upgrade migration, probe isolation and read-only transport startup")
+}
+
+
+private func testDiscoveryOnFirstUse(awaitIdle: (DisplayStore) -> Void) {
+    let suite = "com.local.redmagic-display.tests." + UUID().uuidString
+    let preferences = UserDefaults(suiteName: suite)!
+    let bindings = MonitorBindings(defaults: preferences)
+    let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer {
+        preferences.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: cache)
+    }
+    let transport = ResetTestDDC()
+    let controller = DDCController(log: EventLog(), transport: transport)
+    let bluetooth = StoreTestBluetooth()
+    func launch(_ scan: @escaping () -> DDCDiscoveryResult) -> DisplayStore {
+        DisplayStore(ddc: controller, bluetooth: bluetooth, cacheURL: cache, loadCache: false,
+                     bindings: bindings, scanDDC: scan)
+    }
+
+    let empty = launch { DDCDiscoveryResult(serials: [], matchedCount: 0) }
+    var completed = false
+    empty.onRefreshComplete = { completed = true }
+    empty.refresh()
+    awaitIdle(empty)
+    precondition(completed && empty.needsBinding && empty.bindingOptions.isEmpty)
+
+    let ambiguous = launch { DDCDiscoveryResult(serials: ["Fixture A"], matchedCount: 2) }
+    ambiguous.start()
+    awaitIdle(ambiguous)
+    precondition(ambiguous.needsBinding && ambiguous.bindingOptions == ["Fixture A"])
+    ambiguous.chooseMonitor("unknown")
+    precondition(bindings.serial.isEmpty && controller.statistics["reads"] == 0)
+    ambiguous.chooseMonitor("Fixture A")
+    awaitIdle(ambiguous)
+    precondition(bindings.serial == "Fixture A" && !ambiguous.needsBinding)
+
+    let saved = launch { preconditionFailure("Existing binding must skip discovery") }
+    saved.start()
+    awaitIdle(saved)
+    precondition(!saved.needsBinding && saved.bindingOptions.isEmpty)
+    bindings.bindIfMissing("Fixture B", to: .ddc)
+    precondition(bindings.serial == "Fixture A")
+    preferences.removeObject(forKey: "MonitorSerial")
+
+    let single = launch { DDCDiscoveryResult(serials: ["Fixture B"], matchedCount: 1) }
+    single.start()
+    single.showingDonations = true
+    single.selectChannel(.ddc)
+    // The cancelled scan can finish after the replacement scan has started.
+    awaitIdle(single)
+    precondition(bindings.serial == "Fixture B" && !single.needsBinding)
+    bindings.bindIfMissing("invalid address", to: .bluetooth)
+    precondition(bindings.address == nil)
+    bindings.bindIfMissing("01:02:03:04:05:06", to: .bluetooth)
+    bindings.bindIfMissing("10:20:30:40:50:60", to: .bluetooth)
+    precondition(bindings.address == Data([1, 2, 3, 4, 5, 6]))
+    let switcher = launch { DDCDiscoveryResult(serials: ["Fixture C"], matchedCount: 1) }
+    var replaced = false
+    switcher.onMonitorReplaced = { replaced = true }
+    switcher.selectAnotherMonitor()
+    awaitIdle(switcher)
+    precondition(switcher.selectingReplacement && bindings.serial == "Fixture B")
+    switcher.chooseMonitor("Fixture C")
+    precondition(replaced && bindings.serial == "Fixture C" && bindings.address == nil)
+    precondition(bluetooth.queries.isEmpty && bluetooth.settingWriteCount == 0 && transport.writes.isEmpty)
+    print("PASS: first-use discovery, ambiguous target selection, saved bindings, retry after cancellation and read-only startup")
 }

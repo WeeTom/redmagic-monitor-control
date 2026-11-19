@@ -174,3 +174,15 @@
 "快捷方式签名校验失败。%@" = "La vérification de la signature du raccourci a échoué. %@";
 "通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。" = "Se connecte à votre moniteur REDMAGIC via Bluetooth pour changer d’entrée, lire son état et ajuster les réglages d’image et d’éclairage compatibles.";
 "连接红魔显示器并控制输入源及已支持的设置。" = "Se connecte au moniteur REDMAGIC pour contrôler l’entrée et les réglages compatibles.";
+"未找到可识别的 GM001J，请检查连接后重新搜索。" = "Aucun GM001J identifié. Vérifiez la connexion et relancez la recherche.";
+"选择要控制的显示器" = "Choisissez le moniteur à contrôler";
+"显示器" = "Moniteur";
+"重新搜索" = "Relancer la recherche";
+"请先识别显示器后再试。" = "Identifiez d’abord le moniteur, puis réessayez.";
+"正在检查另一种连接。若发现多台显示器，本次仅使用%@。需要双通道时，请先在%@页选择目标再导出。" = "Vérification de l’autre connexion. Si plusieurs moniteurs sont détectés, seul %@ sera utilisé. Pour utiliser les deux connexions, choisissez le moniteur dans l’onglet %@ avant l’exportation.";
+"发现多台显示器，本次仅使用%@。请在%@页选择目标后重新导出。" = "Plusieurs moniteurs détectés. Seul %@ sera utilisé. Choisissez le moniteur dans l’onglet %@ et relancez l’exportation.";
+"未能同时验证两个通道，本次仅使用%@。" = "Les deux connexions n’ont pas pu être vérifiées. Seul %@ sera utilisé.";
+"正在识别显示器…" = "Identification du moniteur…";
+"识别结束后将自动导出，也可以立即使用%@导出。" = "L’exportation reprendra automatiquement après l’identification. Vous pouvez aussi exporter maintenant en utilisant uniquement %@.";
+"立即使用%@导出" = "Exporter maintenant via %@";
+"取消" = "Annuler";
