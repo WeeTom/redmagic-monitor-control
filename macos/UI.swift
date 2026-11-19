@@ -122,6 +122,8 @@ struct ControlPanel: View {
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollIndicators(.never)
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             Divider()
             footer
         }
