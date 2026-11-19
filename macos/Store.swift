@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import AppKit
 import ServiceManagement
+import CoreBluetooth
 
 protocol DisplayBluetooth: AnyObject {
     var onState: ((String) -> Void)? { get set }
@@ -66,6 +67,11 @@ final class DisplayStore:ObservableObject {
     private static let bluetoothFeatures: [Feature] = [.input, .mode, .hdr, .lightPower, .lightLevel, .lightEffect, .lightColor]
     private var confirmedDDCThisSession = Set<String>()
     private var confirmedBLEThisRun = Set<Feature>()
+    private static let inputCheckInterval: TimeInterval = 5
+    private let now: () -> Date
+    private let canSyncMenu: () -> Bool
+    private var lastInputRead = [ControlChannel: Date]()
+    private var inputIntent = 0
     private var injectedDDC:DDCController?
     private let injectedBluetooth: DisplayBluetooth?
     private var reportStatus=true
@@ -74,8 +80,13 @@ final class DisplayStore:ObservableObject {
         let b = injectedBluetooth ?? BluetoothController(log:log)
         b.onState={ [weak self] text in self?.bluetoothStatus=text }
         b.onConnection={ [weak self] connected in
-            self?.bluetoothConnected = connected
-            if !connected { self?.bluetoothStatus = "蓝牙已断开" }
+            guard let self else { return }
+            self.bluetoothConnected = connected
+            if !connected {
+                self.bluetoothStatus = "蓝牙已断开"
+                self.confirmedBLEThisRun.remove(.input)
+                if self.values[.input] != nil { self.stale.insert("b:\(Feature.input.rawValue)") }
+            }
         }
         return b
     }()
@@ -89,8 +100,24 @@ final class DisplayStore:ObservableObject {
     var onRefreshComplete:(()->Void)?
     var busy:Bool { pendingBLE>0 || ddcBusy || !ddcReading.isEmpty || !ddcWriting.isEmpty }
     var inputBusy:Bool { ddcWriting.contains("input") || bleWriting.contains(.input) }
+    var inputMismatch: (active: String, menu: String)? {
+        let menuKey = "b:\(Feature.input.rawValue)"
+        guard !inputBusy, bluetoothConnected, confirmedDDCThisSession.contains("input"), confirmedBLEThisRun.contains(.input),
+              !stale.contains("d:input"), !stale.contains(menuKey), ddcDrafts["input"] == nil, bleDrafts[.input] == nil,
+              let activeDate = dates["d:input"], let menuDate = dates[menuKey],
+              now().timeIntervalSince(min(activeDate, menuDate)) < Self.inputCheckInterval,
+              let active = MonitorInput.ports.first(where: { $0.ddc == ddcValues["input"] }),
+              let menu = values[.input], active.bluetooth != menu else { return nil }
+        return (active.name, Feature.input.label(menu))
+    }
     init(demo:Bool=false,ddc:DDCController?=nil,bluetooth:DisplayBluetooth?=nil,cacheURL:URL?=nil,loadCache:Bool=true,
-         channelDefaults: UserDefaults? = nil, previousStatusURL: URL? = nil) {
+         channelDefaults: UserDefaults? = nil, previousStatusURL: URL? = nil,
+         now: @escaping () -> Date = Date.init, canSyncMenu: (() -> Bool)? = nil) {
+        self.now = now
+        let usesSystemTransports = ddc == nil && bluetooth == nil
+        self.canSyncMenu = canSyncMenu ?? {
+            usesSystemTransports && MonitorIdentity.address != nil && CBManager.authorization == .allowedAlways
+        }
         self.channelDefaults = demo ? nil : channelDefaults
         self.demo=demo;self.injectedDDC=ddc;self.injectedBluetooth=bluetooth;self.reportStatus=ddc==nil && bluetooth==nil
         self.cacheURL=demo ? nil : (cacheURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/RedMagicDisplay/cache-\(MonitorIdentity.cacheKey).json"))
@@ -158,6 +185,7 @@ final class DisplayStore:ObservableObject {
         }
     }
     func start() { loadSelectedChannelIfNeeded() }
+    func panelOpened() { loadSelectedChannelIfNeeded() }
 
     func selectChannel(_ selected: ControlChannel) {
         guard selected != channel else { return }
@@ -170,15 +198,22 @@ final class DisplayStore:ObservableObject {
 
     private func loadSelectedChannelIfNeeded() {
         guard !demo else { return }
+        // An external host can change the input while this popover is closed.
+        // Revisit only that setting on a warm connection and coalesce rapid opens.
+        let checkInput = !inputBusy && now().timeIntervalSince(lastInputRead[channel] ?? .distantPast) >= Self.inputCheckInterval
         if channel == .ddc {
-            let missing = Self.ddcFeatures.filter { !confirmedDDCThisSession.contains($0) }
+            let missing = Self.ddcFeatures.filter {
+                if $0 == "input" && inputBusy { return false }
+                return !confirmedDDCThisSession.contains($0) || ($0 == "input" && checkInput)
+            }
             if !missing.isEmpty { refreshDDC(missing) }
         } else if bluetoothConnected {
+            if checkInput && confirmedBLEThisRun.contains(.input) { request(.input) }
             readMissingBluetoothFeatures()
         } else {
             // This single read starts the verified connection, including after idle
             // disconnect. A second page visit reuses the same pending input query.
-            request(.input) { [weak self] in self?.readMissingBluetoothFeatures() }
+            request(.input, completion: { [weak self] in self?.readMissingBluetoothFeatures() })
         }
     }
 
@@ -191,12 +226,12 @@ final class DisplayStore:ObservableObject {
     }
 
     private func readBluetooth(_ feature: Feature, onlyMissing: Bool) {
-        request(feature) { [weak self] in
+        request(feature, completion: { [weak self] in
             guard let self, feature == .lightEffect, self.values[feature] == 7 else { return }
             for color: Feature in [.frontColor, .rearColor] where !onlyMissing || !self.confirmedBLEThisRun.contains(color) {
                 self.request(color)
             }
-        }
+        })
     }
 
     func refresh() {
@@ -212,6 +247,11 @@ final class DisplayStore:ObservableObject {
             ddcStatus="请配置显示器 MonitorSerial 并重启应用"; changed(); return
         }
         for f in features where !ddcReading.contains(f) && !ddcWriting.contains(f) {
+            if f == "input" {
+                guard !inputBusy else { continue }
+                lastInputRead[.ddc] = now()
+                if ddcValues[f] != nil { stale.insert("d:input") }
+            }
             ddcReading.insert(f)
             let generation=ddcGeneration[f,default:0]
             ddc.read(f) { [weak self] result in
@@ -219,7 +259,7 @@ final class DisplayStore:ObservableObject {
                 if generation==self.ddcGeneration[f,default:0] && !self.ddcWriting.contains(f) {
                     if case .success(let v)=result {
                         self.confirmedDDCThisSession.insert(f)
-                        self.ddcValues[f]=v;self.ddcDrafts.removeValue(forKey:f);self.stale.remove("d:"+f);self.dates["d:"+f]=Date();self.persist()
+                        self.ddcValues[f]=v;self.ddcDrafts.removeValue(forKey:f);self.stale.remove("d:"+f);self.dates["d:"+f]=self.now();self.persist()
                     } else { self.stale.insert("d:"+f) }
                 }
                 if self.ddcReading.isEmpty { self.lastRefresh=Date();self.ddcStatus=self.ddcValues.isEmpty ? "DDC 暂不可用 · 可刷新重试":"DDC · 已保留最近状态" }
@@ -228,9 +268,10 @@ final class DisplayStore:ObservableObject {
         }
         changed()
     }
-    private func request(_ f:Feature,value:Int?=nil,reapply:Bool=false,completion:(()->Void)?=nil) {
+    private func request(_ f:Feature,value:Int?=nil,reapply:Bool=false,onFailure:((Error)->Void)?=nil,completion:(()->Void)?=nil) {
         guard f != .volume else { return }
         if value==nil && (bleReading.contains(f) || bleWriting.contains(f)) { return }
+        if f == .input && value == nil && inputBusy { return }
         if demo { if let value { values[f]=value };completion?();changed();return }
         guard injectedBluetooth != nil || MonitorIdentity.address != nil else {
             bluetoothStatus="请配置显示器 BluetoothAddress 并重启应用"; changed(); return
@@ -239,7 +280,13 @@ final class DisplayStore:ObservableObject {
         if let value {
             bleGeneration[f,default:0]+=1;generation=bleGeneration[f]!
             bleDrafts[f]=value;bleWriting.insert(f)
-        } else { generation=bleGeneration[f,default:0];bleReading.insert(f) }
+        } else {
+            generation=bleGeneration[f,default:0];bleReading.insert(f)
+            if f == .input {
+                lastInputRead[.bluetooth] = now()
+                if values[f] != nil { stale.insert("b:\(f.rawValue)") }
+            }
+        }
         pendingBLE+=1;changed()
         bluetooth.submit(f,value:value,reapply:reapply) { [weak self] result in
             guard let self else { return };self.pendingBLE-=1
@@ -249,17 +296,18 @@ final class DisplayStore:ObservableObject {
                 switch result {
                 case .success(let actual):
                     self.confirmedBLEThisRun.insert(f)
-                    self.values[f]=actual;self.bleDrafts.removeValue(forKey:f);self.stale.remove("b:\(f.rawValue)");self.dates["b:\(f.rawValue)"]=Date();self.persist()
+                    self.values[f]=actual;self.bleDrafts.removeValue(forKey:f);self.stale.remove("b:\(f.rawValue)");self.dates["b:\(f.rawValue)"]=self.now();self.persist()
+                    if f == .input { self.lastInputRead[.bluetooth] = self.now() }
                     if value != nil { self.message="\(f.title)已回读确认" }
                     completion?()
-                case .failure(let error):self.stale.insert("b:\(f.rawValue)");self.message=error.localizedDescription
+                case .failure(let error):
+                    self.stale.insert("b:\(f.rawValue)");self.message=error.localizedDescription;onFailure?(error)
                 }
             }
             if self.pendingBLE == 0 {
                 self.lastRefresh = Date()
                 if self.bluetoothConnected {
-                    let input = self.values[.input].map { " · " + Feature.input.label($0) } ?? ""
-                    self.bluetoothStatus = "蓝牙已连接" + input
+                    self.bluetoothStatus = "蓝牙已连接"
                 }
             }
             self.changed();self.finishRefresh()
@@ -272,30 +320,65 @@ final class DisplayStore:ObservableObject {
             // EE0102 is ignored by stock firmware. Reapply the actual effect.
             let enable:()->Void = { [weak self] in
                 guard let self,let effect=self.values[.lightEffect] else { return }
-                self.request(.lightEffect,value:effect,reapply:true) { [weak self] in self?.request(.lightPower) }
+                self.request(.lightEffect,value:effect,reapply:true,completion:{ [weak self] in self?.request(.lightPower) })
             }
             if values[.lightEffect]==nil { request(.lightEffect,completion:enable) } else { enable() };return
         }
-        request(f,value:value,reapply:reapply) { [weak self] in
+        if f == .input {
+            inputIntent += 1
+            markDDCStale(Self.ddcFeatures)
+        }
+        request(f,value:value,reapply:reapply || f == .input,completion:{ [weak self] in
             guard let self else { return }
             if f == .input {
                 self.markDDCStale(Self.ddcFeatures)
+                if self.channel == .bluetooth { self.readMissingBluetoothFeatures() }
             }
             if f == .lightEffect && self.values[f]==7 { self.request(.frontColor);self.request(.rearColor) }
-        }
+        })
     }
     func setDDC(_ feature: String, _ value: Int) {
         guard channel == .ddc, DDCController.canWrite(feature, value),
               displayedDDC(feature) != nil || feature == "input",
               !(feature == "input" && inputBusy) else { return }
+        if feature == "input" { inputIntent += 1 }
+        let intent = inputIntent
         writeDDC(feature, value: value) { [weak self] result in
             guard let self else { return }
+            if feature == "input" {
+                guard intent == self.inputIntent else { return }
+                self.finishDDCInput(value, result: result)
+                return
+            }
             switch result {
             case .success:
-                self.message = feature == "input" ? "DDC 已回报目标输入源，菜单状态请以显示器为准" : "设置已回读确认"
+                self.message = "设置已回读确认"
             case .failure(DDCOperationError.superseded): break
             case .failure(let error): self.message = error.localizedDescription
             }
+        }
+    }
+
+    private func finishDDCInput(_ value: Int, result: Result<Int, Error>) {
+        guard let port = MonitorInput.ports.first(where: { $0.ddc == value }) else { return }
+        let ddcReport: String
+        switch result {
+        case .success: ddcReport = "DDC 已确认 \(port.name)"
+        case .failure(DDCOperationError.unconfirmed): ddcReport = "DDC 已发送，活动输入尚未确认"
+        case .failure(DDCOperationError.superseded): return
+        case .failure(let error): message = error.localizedDescription; return
+        }
+        guard !demo, bluetoothConnected || canSyncMenu() else {
+            message = "\(ddcReport)。可在蓝牙页选择 \(port.name) 同步显示器菜单"
+            return
+        }
+        message = "\(ddcReport)，正在同步显示器菜单"
+        request(.input, value: port.bluetooth, reapply: true, onFailure: { [weak self] _ in
+            self?.message = "\(ddcReport)。蓝牙未能确认菜单设置，请在蓝牙页重试"
+        }) { [weak self] in
+            guard let self else { return }
+            self.message = "\(ddcReport)，蓝牙已确认菜单为 \(port.name)"
+            if self.channel == .bluetooth { self.readMissingBluetoothFeatures() }
         }
     }
 
@@ -365,7 +448,8 @@ final class DisplayStore:ObservableObject {
                 self.ddcValues[feature] = actual
                 self.ddcDrafts.removeValue(forKey: feature)
                 self.stale.remove("d:" + feature)
-                self.dates["d:" + feature] = Date()
+                self.dates["d:" + feature] = self.now()
+                if feature == "input" { self.lastInputRead[.ddc] = self.now() }
                 self.persist()
             case .failure: self.stale.insert("d:" + feature)
             }
@@ -374,7 +458,7 @@ final class DisplayStore:ObservableObject {
             self.finishRefresh()
         }
     }
-    func disconnectBluetooth() { guard bluetoothCreated else { return };bluetooth.stop();changed() }
+    func disconnectBluetooth() { inputIntent += 1; guard bluetoothCreated else { return };bluetooth.stop();changed() }
     func toggleLogin(_ enabled:Bool) {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -383,6 +467,7 @@ final class DisplayStore:ObservableObject {
         } catch { message="登录项设置失败：\(error.localizedDescription)" }
     }
     func stop() {
+        inputIntent += 1
         confirmedDDCThisSession.removeAll()
         if !demo { if bluetoothCreated { bluetooth.stop() };if ddcCreated { ddc.invalidate() } }
     }

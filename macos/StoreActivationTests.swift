@@ -7,14 +7,20 @@ final class StoreTestBluetooth: DisplayBluetooth {
     private(set) var settingWriteCount = 0
     private(set) var queryWriteCount = 0
     private(set) var queries = [Feature]()
+    private(set) var inputWrites = [(target: Int, forced: Bool)]()
     var deferFirstInput = false
     var failFirstInput = false
+    var rejectInputWrite = false
     private var connected = false
     private var heldInput: (() -> Void)?
     private var values: [Feature: Int] = [.input: 1, .mode: 7, .hdr: 2, .lightPower: 1,
                                           .lightLevel: 1, .lightEffect: 2, .lightColor: 7]
 
     func submit(_ feature: Feature, value: Int?, reapply: Bool, completion: @escaping (Result<Int, Error>) -> Void) {
+        if feature == .input, let value {
+            inputWrites.append((value, reapply))
+            if rejectInputWrite { completion(.failure(DisplayError("Unconfirmed menu"))); return }
+        }
         if let value { settingWriteCount += 1; values[feature] = value }
         else { queryWriteCount += 1; queries.append(feature) }
         let reply = {
@@ -36,6 +42,7 @@ final class StoreTestBluetooth: DisplayBluetooth {
         } else { reply() }
     }
     func releaseInput() { let reply = heldInput; heldInput = nil; reply?() }
+    func externalInput(_ value: Int) { values[.input] = value }
     func stop() { connected = false; onConnection?(false) }
 }
 
@@ -43,8 +50,10 @@ private final class ResetTestDDC: DDCTransport {
     private var values = ["luminance": 71, "contrast": 31, "input": 7, "volume": 2]
     private(set) var writes = [String]()
     var rejectContrast = false
+    var failInputRead = false
     func read(_ feature: String, attempt: Int) -> DDCSample {
-        DDCSample(status: 0, value: values[feature] ?? 0, maximum: 100, raw: "validated")
+        DDCSample(status: feature == "input" && failInputRead ? 1 : 0,
+                  value: values[feature] ?? 0, maximum: 100, raw: "test")
     }
     func write(_ feature: String, value: Int) -> Int {
         writes.append(feature)
@@ -69,7 +78,8 @@ func runStoreActivationTests() {
     let bluetooth = StoreTestBluetooth()
     let transport = ResetTestDDC()
     let ddc = DDCController(log: EventLog(), transport: transport)
-    let store = DisplayStore(ddc: ddc, bluetooth: bluetooth, cacheURL: cache, loadCache: false)
+    var time = Date()
+    let store = DisplayStore(ddc: ddc, bluetooth: bluetooth, cacheURL: cache, loadCache: false, now: { time })
     bluetooth.deferFirstInput = true
     store.selectChannel(.bluetooth)
     precondition(bluetooth.queries == [.input])
@@ -98,12 +108,32 @@ func runStoreActivationTests() {
     precondition(store.message.contains("亮度已恢复") && store.message.contains("对比度未确认"))
     precondition(store.ddcValues["volume"] == 2 && transport.writes.count == 4)
 
-    let beforeInputChange = bluetooth.queryWriteCount
     store.selectChannel(.ddc)
     store.setDDC("input", 8); awaitIdle(store)
-    precondition(store.noteBLE(.input) == "上次确认" && store.noteDDC("luminance") == "上次确认")
+    precondition(store.values[.input] == 2 && store.noteBLE(.input).isEmpty && store.noteDDC("luminance") == "上次确认")
+    precondition(bluetooth.inputWrites.count == 1 && bluetooth.inputWrites[0].target == 2 && bluetooth.inputWrites[0].forced)
     store.selectChannel(.bluetooth)
-    precondition(bluetooth.queries.last == .input && bluetooth.queryWriteCount == beforeInputChange + 1)
+    let beforeReopen = bluetooth.queryWriteCount
+    // Another host changed the menu while this panel was closed. Only the input
+    // is re-read; repeated opens during the query reuse the same connection.
+    time.addTimeInterval(6)
+    bluetooth.externalInput(1)
+    bluetooth.deferFirstInput = true
+    store.panelOpened(); store.panelOpened()
+    precondition(store.noteBLE(.input) == "上次确认" && store.inputMismatch == nil)
+    precondition(bluetooth.queries.last == .input && bluetooth.queryWriteCount == beforeReopen + 1)
+    bluetooth.releaseInput()
+    store.selectChannel(.ddc); awaitIdle(store)
+    precondition(store.inputMismatch?.active == "DP" && store.inputMismatch?.menu == "Type-C")
+    store.selectChannel(.bluetooth); store.panelOpened()
+    precondition(bluetooth.queryWriteCount == beforeReopen + 1 && bluetooth.inputWrites.count == 1)
+    store.set(.input, 1)
+    precondition(bluetooth.inputWrites.last?.forced == true && bluetooth.inputWrites.count == 2)
+    precondition(store.inputMismatch == nil && store.noteDDC("input") == "上次确认")
+    store.disconnectBluetooth()
+    precondition(store.noteBLE(.input) == "上次确认")
+
+    testDDCMenuSync(cache: cache, awaitIdle: awaitIdle)
 
     let retryBLE = StoreTestBluetooth()
     retryBLE.failFirstInput = true
@@ -113,7 +143,43 @@ func runStoreActivationTests() {
     retry.selectChannel(.ddc); retry.selectChannel(.bluetooth); awaitIdle(retry)
     precondition(retry.bluetoothConnected && retryBLE.queryWriteCount == 8)
     print("PASS: cold and cached page activation, pending-read deduplication, retry after failure, one reconnect query after disconnect")
+    print("PASS: recheck only the visible input on reopen, compare independent recent reads, force explicit menu selection")
     print("PASS: defaults set only brightness/contrast, verify each independently, and report partial failure")
+}
+
+private func testDDCMenuSync(cache: URL, awaitIdle: (DisplayStore) -> Void) {
+    let bluetooth = StoreTestBluetooth()
+    let transport = ResetTestDDC()
+    let ddc = DDCController(log: EventLog(), transport: transport)
+    var authorized = false
+    let store = DisplayStore(ddc: ddc, bluetooth: bluetooth, cacheURL: cache,
+                             loadCache: false, canSyncMenu: { authorized })
+    store.setDDC("input", 8); awaitIdle(store)
+    precondition(bluetooth.connectionCount == 0 && bluetooth.inputWrites.isEmpty)
+    precondition(store.message.contains("可在蓝牙页"))
+
+    authorized = true
+    store.setDDC("input", 6); awaitIdle(store)
+    precondition(bluetooth.inputWrites.count == 1 && bluetooth.inputWrites[0].target == 4)
+    precondition(bluetooth.inputWrites[0].forced && store.message.contains("菜单为 HDMI 2"))
+    bluetooth.rejectInputWrite = true
+    store.setDDC("input", 5); awaitIdle(store)
+    precondition(store.noteDDC("input").isEmpty && store.noteBLE(.input) == "待确认")
+    precondition(store.message.contains("蓝牙未能确认"))
+
+    transport.failInputRead = true
+    bluetooth.rejectInputWrite = false
+    store.setDDC("input", 7); awaitIdle(store)
+    precondition(store.message.contains("活动输入尚未确认") && store.message.contains("菜单为 Type-C"))
+    precondition(store.noteDDC("input") == "待确认" && store.noteBLE(.input).isEmpty)
+
+    transport.failInputRead = false
+    let before = bluetooth.inputWrites.count
+    store.setDDC("input", 8)
+    store.disconnectBluetooth()
+    awaitIdle(store)
+    precondition(bluetooth.inputWrites.count == before)
+    print("PASS: DDC input sync checks Bluetooth authorization, verifies menu separately, cancels on explicit disconnect")
 }
 
 private func testChannelPreference(awaitIdle: (DisplayStore) -> Void) {

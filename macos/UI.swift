@@ -78,6 +78,9 @@ struct ControlPanel: View {
     private var currentInput: Int? {
         isDDC ? store.displayedDDC("input") : store.displayedBLE(.input)
     }
+    private var inputNote: String {
+        isDDC ? store.noteDDC("input") : store.noteBLE(.input)
+    }
     var body: some View {
         let size = PanelLayout.size(for: store.channel)
         VStack(spacing: 0) {
@@ -173,16 +176,18 @@ struct ControlPanel: View {
     }
 
     private var inputCard: some View {
-        SettingsCard(title: "输入源", symbol: "cable.connector") {
+        SettingsCard(title: isDDC ? "活动输入源" : "显示器菜单输入源", symbol: "cable.connector") {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())], spacing: 6) {
                 ForEach(isDDC ? DDCController.inputChoices : Feature.input.choices, id: \.0) { value, title in
                     let selected = currentInput == value
+                    let confirmed = selected && inputNote.isEmpty
+                    let inputIcon = selected ? "clock" : "display"
                     Button {
                         if isDDC { store.setDDC("input", value) } else { store.set(.input, value) }
                     } label: {
                         HStack(spacing: 7) {
-                            Image(systemName: selected ? (store.inputBusy ? "clock" : "checkmark.circle.fill") : "display")
-                                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                            Image(systemName: confirmed ? "checkmark.circle.fill" : inputIcon)
+                                .foregroundStyle(confirmed ? Color.accentColor : .secondary)
                                 .frame(width: 16)
                             Text(title).font(.system(size: 12, weight: .medium))
                             Spacer(minLength: 0)
@@ -191,18 +196,29 @@ struct ControlPanel: View {
                         .frame(height: 28)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.055))
+                                .fill(confirmed ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.055))
                         )
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityAddTraits(selected ? [.isSelected] : [])
+                    .accessibilityAddTraits(confirmed ? [.isSelected] : [])
+                    .accessibilityValue(selected ? inputNote : "")
                     .disabled(store.inputBusy)
                 }
             }
-            let note = isDDC ? store.noteDDC("input") : store.noteBLE(.input)
-            if !note.isEmpty { hint(note) }
-            if isDDC { hint("需要同步显示器菜单时，请用蓝牙切换。") }
+            if !inputNote.isEmpty {
+                let ports = isDDC ? DDCController.inputChoices : Feature.input.choices
+                let name = ports.first(where: { $0.0 == currentInput })?.1
+                hint([name, inputNote].compactMap { $0 }.joined(separator: " · "))
+            }
+            if let mismatch = store.inputMismatch {
+                let action = isDDC ? "在蓝牙页选择" : "选择"
+                hint("活动输入为 \(mismatch.active)，菜单为 \(mismatch.menu)。\(action) \(mismatch.active) 可同步菜单。")
+            } else if isDDC {
+                hint("切换输入时，会尝试通过已授权的蓝牙同步显示器菜单。")
+            } else {
+                hint("选择接口会同时切换画面和显示器菜单。")
+            }
         }
     }
 

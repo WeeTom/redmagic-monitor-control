@@ -11,6 +11,7 @@
   "commands_have_sequence_ids": false,
   "set_ack_is_state_confirmation": false,
   "hardware_behavior_confirmed": [
+    "With DP video active (DDC 0x60 = 8), the OSD and BLE GET both still indicated Type-C. Explicit BLE ED 01 02 aligned the menu to DP, confirmed by two independent input queries and the physical OSD.",
     "BLE input was tested with active video on Type-C, DP and HDMI 2; the monitor OSD followed the selected input.",
     "The USB hub moved to Type-B for DP and Type-C for Type-C in the tested two-computer setup.",
     "Writing headphone volume 0 through vendor DDC C8 updated the OSD to 0 and muted the 3.5 mm output."
@@ -54,7 +55,8 @@
     "confirmed_headphones": "muted",
     "automatic_increase": false
   },
-  "channel_selection_reads": "first use, missing values, or reconnect",
+  "channel_selection_reads": "first use, missing values, reconnect, and a throttled check of the visible input on panel entry",
+  "input_menu_sync": "An explicit DDC port selection may also write the corresponding BLE menu input on an already authorized and configured device. Panel entry and refresh only query state.",
   "display_defaults": {
     "luminance": 50,
     "contrast": 50

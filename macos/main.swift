@@ -110,7 +110,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
     @objc func show() {
         guard let button=statusItem?.button else { return }
         NSApp.activate(ignoringOtherApps:true)
+        let opening = !popover.isShown
         popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY)
+        if opening { store.panelOpened() }
     }
     @objc func refresh() { store.refresh() }
     @objc func quit() { NSApp.terminate(nil) }
