@@ -91,6 +91,17 @@ private struct SliderSetting: View {
 struct ControlPanel: View {
     @ObservedObject var store: DisplayStore
 
+    private enum Page: Hashable { case control(ControlChannel), donation }
+
+    private var page: Binding<Page> {
+        Binding(get: { store.showingDonations ? .donation : .control(store.channel) }, set: { selection in
+            switch selection {
+            case .control(let channel): store.selectChannel(channel)
+            case .donation: store.showingDonations = true
+            }
+        })
+    }
+
     private var isDDC: Bool { store.channel == .ddc }
     private var currentInput: Int? {
         isDDC ? store.displayedDDC("input") : store.displayedBLE(.input)
@@ -102,13 +113,17 @@ struct ControlPanel: View {
         VStack(spacing: 0) {
             header.fixedSize(horizontal: false, vertical: true)
             Divider()
-            ViewThatFits(in: .vertical) {
-                settings.fixedSize(horizontal: false, vertical: true)
-                ScrollView(.vertical) { settings }
-                    .scrollIndicators(.never)
-                    .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+            if store.showingDonations {
+                DonationView()
+            } else {
+                ViewThatFits(in: .vertical) {
+                    settings.fixedSize(horizontal: false, vertical: true)
+                    ScrollView(.vertical) { settings }
+                        .scrollIndicators(.never)
+                        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             Divider()
             footer.fixedSize(horizontal: false, vertical: true)
         }
@@ -164,39 +179,50 @@ struct ControlPanel: View {
                     .accessibilityHidden(true)
                 Text("红魔显示器").font(.system(size: 17, weight: .semibold))
                 Spacer()
-                Picker("控制通道", selection: Binding(get: { store.channel }, set: store.selectChannel)) {
-                    Text("DDC").tag(ControlChannel.ddc)
-                    Text("蓝牙").tag(ControlChannel.bluetooth)
+                Picker("页面", selection: page) {
+                    Text("DDC").tag(Page.control(.ddc))
+                    Text("蓝牙").tag(Page.control(.bluetooth))
+                    Text("捐献").tag(Page.donation)
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
-            HStack(spacing: 6) {
-                Color.clear.frame(width: 12, height: 12).overlay {
-                    if store.busy { ProgressView().controlSize(.mini) }
-                }.accessibilityHidden(true)
-                Text(store.status)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                Spacer(minLength: 4)
-                if !isDDC {
-                    Button(store.bluetoothConnected ? "断开" : "连接并读取") {
-                        if store.bluetoothConnected { store.disconnectBluetooth() } else { store.refresh() }
-                    }
-                    .disabled(!store.bluetoothConnected && store.pendingBLE > 0)
-                    .help("蓝牙空闲 5 分钟后自动断开")
-                }
-                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                    .accessibilityLabel("刷新当前页面").help("重新读取当前通道的设置")
+            if store.showingDonations {
+                Text("用对应的 App 扫码支持项目。")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(height: 30)
+            } else {
+                connectionStatus
             }
-            .controlSize(.small)
-            .frame(height: 30)
         }
         .padding(.horizontal, PanelLayout.margin)
         .padding(.top, 13)
         .padding(.bottom, 10)
+    }
+
+    private var connectionStatus: some View {
+        HStack(spacing: 6) {
+            Color.clear.frame(width: 12, height: 12).overlay {
+                if store.busy { ProgressView().controlSize(.mini) }
+            }.accessibilityHidden(true)
+            Text(store.status)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            if !isDDC {
+                Button(store.bluetoothConnected ? "断开" : "连接并读取") {
+                    if store.bluetoothConnected { store.disconnectBluetooth() } else { store.refresh() }
+                }
+                .disabled(!store.bluetoothConnected && store.pendingBLE > 0)
+                .help("蓝牙空闲 5 分钟后自动断开")
+            }
+            Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                .accessibilityLabel("刷新当前页面").help("重新读取当前通道的设置")
+        }
+        .controlSize(.small)
+        .frame(height: 30)
     }
 
     private var inputCard: some View {
@@ -329,6 +355,9 @@ struct ControlPanel: View {
                     .help("通过 DDC 将亮度和对比度各设为 50")
                 Text("亮度 50 · 对比度 50").font(.system(size: 10)).foregroundStyle(.secondary)
             }
+            .opacity(store.showingDonations ? 0 : 1)
+            .disabled(store.showingDonations)
+            .accessibilityHidden(store.showingDonations)
             Spacer()
             Toggle("登录时启动", isOn: Binding(get: { store.loginEnabled }, set: store.toggleLogin))
                 .toggleStyle(.switch)

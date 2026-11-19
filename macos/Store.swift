@@ -31,6 +31,7 @@ private struct PreviousStatus: Decodable {
 
 final class DisplayStore:ObservableObject {
     @Published var channel=ControlChannel.ddc
+    @Published var showingDonations = false
     @Published var values=[Feature:Int]()
     @Published var ddcValues=[String:Int]()
     @Published var ddcDrafts=[String:Int]()
@@ -183,10 +184,17 @@ final class DisplayStore:ObservableObject {
         }
     }
     func start() { loadSelectedChannelIfNeeded() }
-    func panelOpened() { loadSelectedChannelIfNeeded() }
+    func panelOpened() {
+        if !showingDonations { loadSelectedChannelIfNeeded() }
+    }
 
     func selectChannel(_ selected: ControlChannel) {
-        guard selected != channel else { return }
+        let returning = showingDonations
+        showingDonations = false
+        guard selected != channel else {
+            if returning { loadSelectedChannelIfNeeded() }
+            return
+        }
         channel = selected
         channelDefaults?.set(selected.preferenceName, forKey: Self.channelPreferenceKey)
         message = ""

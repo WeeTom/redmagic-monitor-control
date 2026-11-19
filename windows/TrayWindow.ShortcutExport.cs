@@ -52,7 +52,7 @@ public partial class TrayWindow
             string executable = Environment.ProcessPath ?? throw new InvalidOperationException("无法定位托盘程序。");
             InputShortcut.Save(dialog.FileName, executable, source, overwrite);
             string message = $"已导出快捷方式 {Path.GetFileName(dialog.FileName)}";
-            if (_page == TransportPage.Ddc) _ddcStatus = message;
+            if (_page == PanelPage.Ddc) _ddcStatus = message;
             else _bleStatus = message;
             Render();
         }

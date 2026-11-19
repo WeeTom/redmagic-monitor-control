@@ -80,6 +80,9 @@ func runStoreActivationTests() {
     let ddc = DDCController(log: EventLog(), transport: transport)
     var time = Date()
     let store = DisplayStore(ddc: ddc, bluetooth: bluetooth, cacheURL: cache, loadCache: false, now: { time })
+    store.showingDonations = true
+    store.panelOpened()
+    precondition(store.channel == .ddc && !store.busy && ddc.statistics["reads"] == 0 && bluetooth.queries.isEmpty)
     bluetooth.deferFirstInput = true
     store.selectChannel(.bluetooth)
     precondition(bluetooth.queries == [.input])
@@ -93,7 +96,11 @@ func runStoreActivationTests() {
     precondition(bluetooth.queryWriteCount == 7 && ddc.statistics["reads"] == 4)
     store.disconnectBluetooth()
     precondition(!store.bluetoothConnected)
-    store.selectChannel(.ddc); store.selectChannel(.bluetooth)
+    store.showingDonations = true
+    store.panelOpened()
+    precondition(store.channel == .bluetooth && bluetooth.connectionCount == 1 && bluetooth.queryWriteCount == 7)
+    store.selectChannel(.bluetooth)
+    precondition(!store.showingDonations)
     precondition(store.bluetoothConnected && bluetooth.connectionCount == 2 && bluetooth.queryWriteCount == 8)
     precondition(bluetooth.queries.last == .input && bluetooth.settingWriteCount == 0)
 

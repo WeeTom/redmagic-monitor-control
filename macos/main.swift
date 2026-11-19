@@ -19,6 +19,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         if let i=args.firstIndex(of:"--preview"),args.count>i+1 {
             store=DisplayStore(demo:true)
+            store.showingDonations = args.contains("--preview-donation")
             if args.contains("--preview-bluetooth") { store.channel = .bluetooth }
             if args.contains("--preview-light") { NSApp.appearance = NSAppearance(named: .aqua) }
             if args.contains("--preview-dark") { NSApp.appearance = NSAppearance(named: .darkAqua) }

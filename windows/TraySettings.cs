@@ -21,9 +21,9 @@ internal sealed class TraySettings
     internal static void SetDataDirectory(string path) =>
         DirectoryPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
-    internal TransportPage Page
+    internal PanelPage Page
     {
-        get => LastPage == nameof(TransportPage.Bluetooth) ? TransportPage.Bluetooth : TransportPage.Ddc;
+        get => LastPage == nameof(PanelPage.Bluetooth) ? PanelPage.Bluetooth : PanelPage.Ddc;
         set => LastPage = value.ToString();
     }
 

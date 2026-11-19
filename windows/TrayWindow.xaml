@@ -139,13 +139,14 @@
 
       <Border Grid.Row="1" Margin="0,15,0,0" Padding="3" BorderThickness="1" BorderBrush="{DynamicResource StrokeBrush}"
               Background="{DynamicResource CardBrush}" CornerRadius="9">
-        <UniformGrid Columns="2">
+        <UniformGrid Columns="3">
           <Button x:Name="DdcTab" Margin="0,0,2,0" Content="DDC" Click="SelectDdc"/>
-          <Button x:Name="BleTab" Margin="2,0,0,0" Content="蓝牙" Click="SelectBluetooth"/>
+          <Button x:Name="BleTab" Margin="2,0" Content="蓝牙" Click="SelectBluetooth"/>
+          <Button x:Name="DonationTab" Margin="2,0,0,0" Content="捐献" Click="SelectDonation"/>
         </UniformGrid>
       </Border>
 
-      <DockPanel Grid.Row="2" Margin="2,11,0,11" LastChildFill="True">
+      <DockPanel Grid.Row="2" x:Name="TransportStatus" Margin="2,11,0,11" LastChildFill="True">
         <Ellipse x:Name="StatusDot" Width="6" Height="6" Margin="0,0,8,0" VerticalAlignment="Center"
                  Fill="{DynamicResource AccentBrush}"/>
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="12"/>
@@ -153,7 +154,7 @@
 
       <ScrollViewer Grid.Row="3" x:Name="Body" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel VerticalAlignment="Top">
-          <DockPanel Margin="0,0,0,7">
+          <DockPanel x:Name="InputHeading" Margin="0,0,0,7">
             <Button x:Name="ExportInputShortcut" DockPanel.Dock="Right" Content="导出快捷方式"
                     MinHeight="26" Padding="8,2" Click="ChooseShortcutInput"/>
             <TextBlock Text="输入源" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -167,6 +168,32 @@
             <Button x:Name="ResetDdc" Content="恢复默认" Margin="0,10,0,0" HorizontalAlignment="Right"
                     ToolTip="将亮度和对比度设为 50" Click="RestoreDefaults"/>
           </StackPanel>
+          <ItemsControl x:Name="DonationCards" Visibility="Collapsed" Margin="0,10,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource StrokeBrush}"
+                        BorderThickness="1" CornerRadius="12" Margin="0,0,0,6" Padding="14,7,7,7">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                      <Border Width="22" Height="3" CornerRadius="1.5" Background="{Binding Accent}"
+                              HorizontalAlignment="Left" Margin="0,0,0,9"/>
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="17"/>
+                      <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="3">
+                      <Image Width="140" Height="140" Source="{Binding ImageUri}" Stretch="Uniform"
+                             SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality"
+                             AutomationProperties.Name="{Binding Name, StringFormat={}{0} 收款二维码}"/>
+                    </Border>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
           <StackPanel x:Name="BlePage" Visibility="Collapsed">
             <UniformGrid x:Name="BleInputs" Columns="4"/>
             <TextBlock x:Name="BleInputDetail" TextWrapping="Wrap" FontSize="12" Margin="2,6,2,0"
@@ -190,8 +217,8 @@
           <CheckBox x:Name="Startup" Content="登录时启动" DockPanel.Dock="Left" Click="ChangeStartup"/>
           <Button x:Name="Disconnect" Content="断开蓝牙" DockPanel.Dock="Right" Visibility="Hidden" Click="DisconnectClicked"/>
         </DockPanel>
-        <UniformGrid Columns="3" Margin="0,10,0,0">
-          <Button Content="刷新" Margin="0,0,4,0" Click="RefreshClicked"/>
+        <UniformGrid x:Name="FooterActions" Columns="3" Margin="0,10,0,0">
+          <Button x:Name="RefreshButton" Content="刷新" Margin="0,0,4,0" Click="RefreshClicked"/>
           <Button Content="日志" Margin="4,0,4,0" Click="OpenLog"/>
           <Button Content="退出" Margin="4,0,0,0" Click="QuitClicked"/>
         </UniformGrid>

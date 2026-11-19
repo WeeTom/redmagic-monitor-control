@@ -40,7 +40,7 @@ public partial class TrayWindow : Window
     private int _sourceGeneration;
     private int _activeReadRequest;
     private bool _changingInput;
-    private TransportPage _page;
+    private PanelPage _page;
     private bool _ddcSeen, _ddcTarget, _ddcBusy, _draining;
     private bool _bleSeen, _bleConnected, _bleBusy;
     private bool _rendering, _dragging, _userPositioned, _exiting;
@@ -55,6 +55,7 @@ public partial class TrayWindow : Window
     }
 
     private sealed record OptionRow(Grid Row, Button Button);
+    private sealed record DonationMethod(string Name, string Detail, string Accent, string ImageUri);
 
     private sealed class InputReading
     {
@@ -97,6 +98,11 @@ public partial class TrayWindow : Window
         AddLevel(DdcControl.Brightness, "亮度");
         AddLevel(DdcControl.Contrast, "对比度");
         AddLevel(DdcControl.Volume, "耳机音量");
+        DonationCards.ItemsSource = new DonationMethod[] {
+            new("Venmo", "@weetom", "#2879C6", "pack://application:,,,/Donation/venmo.png"),
+            new("支付宝", "¥6.66", "#1677FF", "pack://application:,,,/Donation/alipay.png"),
+            new("微信支付", "¥6.66", "#07AD61", "pack://application:,,,/Donation/wechat-pay.png")
+        };
         foreach (var (control, spec) in BleProtocol.Specs)
         {
             if (control == BleControl.Input) continue;
@@ -187,17 +193,21 @@ public partial class TrayWindow : Window
     }
 
     private void HideClicked(object sender, RoutedEventArgs args) => Hide();
-    private void SelectDdc(object sender, RoutedEventArgs args) => SelectPage(TransportPage.Ddc);
-    private void SelectBluetooth(object sender, RoutedEventArgs args) => SelectPage(TransportPage.Bluetooth);
+    private void SelectDdc(object sender, RoutedEventArgs args) => SelectPage(PanelPage.Ddc);
+    private void SelectBluetooth(object sender, RoutedEventArgs args) => SelectPage(PanelPage.Bluetooth);
+    private void SelectDonation(object sender, RoutedEventArgs args) => SelectPage(PanelPage.Donation);
 
-    private void SelectPage(TransportPage page)
+    private void SelectPage(PanelPage page)
     {
         if (_page != page)
         {
             _page = page;
-            _settings.Page = page;
-            try { _settings.Save(); }
-            catch (Exception error) { TrayLog.Write($"保存当前面板。{error.Message}"); }
+            if (page != PanelPage.Donation && _settings.Page != page)
+            {
+                _settings.Page = page;
+                try { _settings.Save(); }
+                catch (Exception error) { TrayLog.Write($"保存当前面板。{error.Message}"); }
+            }
             ApplyPage();
         }
         RequestMissingValues();
@@ -205,24 +215,32 @@ public partial class TrayWindow : Window
 
     private void ApplyPage()
     {
-        bool ddc = _page == TransportPage.Ddc;
+        bool ddc = _page == PanelPage.Ddc;
+        bool bluetooth = _page == PanelPage.Bluetooth;
+        bool donation = _page == PanelPage.Donation;
         DdcTab.Tag = ddc ? "selected" : null;
-        BleTab.Tag = ddc ? null : "selected";
+        BleTab.Tag = bluetooth ? "selected" : null;
+        DonationTab.Tag = donation ? "selected" : null;
         DdcPage.Visibility = ddc ? Visibility.Visible : Visibility.Collapsed;
-        BlePage.Visibility = ddc ? Visibility.Collapsed : Visibility.Visible;
-        Disconnect.Visibility = ddc ? Visibility.Hidden : Visibility.Visible;
+        BlePage.Visibility = bluetooth ? Visibility.Visible : Visibility.Collapsed;
+        DonationCards.Visibility = donation ? Visibility.Visible : Visibility.Collapsed;
+        InputHeading.Visibility = TransportStatus.Visibility = RefreshButton.Visibility =
+            donation ? Visibility.Collapsed : Visibility.Visible;
+        Disconnect.Visibility = bluetooth ? Visibility.Visible : Visibility.Hidden;
+        FooterActions.Columns = donation ? 2 : 3;
         Body.ScrollToTop();
         Render();
     }
 
     private void RequestMissingValues()
     {
-        if (_page == TransportPage.Ddc)
+        if (_page == PanelPage.Ddc)
         {
             if (!_ddcSeen || !_ddcTarget || _ddcInput is null ||
                 _levels.Values.Any(row => row.Confirmed is null || !row.Writable)) RefreshDdc();
         }
-        else RefreshBluetooth(inputOnly: _bleSeen && _bleConnected && !HasMissingBluetoothValues());
+        else if (_page == PanelPage.Bluetooth)
+            RefreshBluetooth(inputOnly: _bleSeen && _bleConnected && !HasMissingBluetoothValues());
     }
 
     private bool HasMissingBluetoothValues() => BleProtocol.Specs.Keys.Any(control =>
@@ -413,7 +431,7 @@ public partial class TrayWindow : Window
             _ddcBusy = false;
             _changingInput = false;
             Render();
-            if (_page == TransportPage.Bluetooth && IsVisible) RequestMissingValues();
+            if (_page == PanelPage.Bluetooth && IsVisible) RequestMissingValues();
         }
     }
 
@@ -502,7 +520,7 @@ public partial class TrayWindow : Window
         {
             _draining = false;
             Render();
-            if (readAfterFailure && IsVisible && _page == TransportPage.Ddc && !_volumeDrag.HasValue)
+            if (readAfterFailure && IsVisible && _page == PanelPage.Ddc && !_volumeDrag.HasValue)
                 RefreshDdc();
         }
     }
@@ -557,7 +575,7 @@ public partial class TrayWindow : Window
             _bleBusy = false;
             Render();
             if (generation != _sourceGeneration && !_changingInput && !_exiting && IsVisible &&
-                _page == TransportPage.Bluetooth) RequestMissingValues();
+                _page == PanelPage.Bluetooth) RequestMissingValues();
         }
     }
 
@@ -619,7 +637,7 @@ public partial class TrayWindow : Window
             _bleBusy = false;
             Render();
         }
-        if (fetchLights && !_exiting && _page == TransportPage.Bluetooth) RefreshBluetooth();
+        if (fetchLights && !_exiting && _page == PanelPage.Bluetooth) RefreshBluetooth();
     }
 
     private async Task<WriteResult<byte>> SelectTypeCFromBluetooth(int generation)
@@ -704,7 +722,7 @@ public partial class TrayWindow : Window
             ResetDdc.IsEnabled = !_ddcBusy && !_draining && _queued.Count == 0 &&
                 _levels[DdcControl.Brightness].Writable && _levels[DdcControl.Contrast].Writable;
             Disconnect.IsEnabled = _bleConnected && !_bleBusy && !_changingInput;
-            StatusText.Text = _page == TransportPage.Ddc ? _ddcStatus : _bleStatus;
+            StatusText.Text = _page == PanelPage.Ddc ? _ddcStatus : _bleStatus;
 
             foreach (var (control, row) in _levels)
             {
@@ -744,8 +762,8 @@ public partial class TrayWindow : Window
 
     private void RefreshClicked(object sender, RoutedEventArgs args)
     {
-        if (_page == TransportPage.Ddc) RefreshDdc();
-        else RefreshBluetooth();
+        if (_page == PanelPage.Ddc) RefreshDdc();
+        else if (_page == PanelPage.Bluetooth) RefreshBluetooth();
     }
 
     private void ChangeStartup(object sender, RoutedEventArgs args)

@@ -5,7 +5,7 @@
     <AssemblyName>RedMagicMonitor</AssemblyName>
     <AssemblyTitle>红魔显示器</AssemblyTitle>
     <Product>红魔显示器 Windows</Product>
-    <Version>0.5.3</Version>
+    <Version>0.5.4</Version>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Icons\Monitor.ico</ApplicationIcon>
@@ -16,6 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Icons\Monitor.ico" />
+    <Resource Include="..\assets\donation\qr\*.png" Link="Donation\%(Filename)%(Extension)" />
     <EmbeddedResource Include="Icons\TrayBlack.ico" LogicalName="TrayBlack.ico" />
     <EmbeddedResource Include="Icons\TrayWhite.ico" LogicalName="TrayWhite.ico" />
   </ItemGroup>

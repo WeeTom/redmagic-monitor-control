@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.4 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.5 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -84,10 +84,12 @@ swiftc macos/Features.swift macos/InputShortcutExporter.swift tests/input_shortc
 
 ## 赞助 · Donation
 
-如果这个工具帮到了你，欢迎通过支付宝、微信支付或 Venmo 扫码支持项目的开发和维护。点击图片可查看原图。
+如果这个工具帮到了你，欢迎扫码支持后续开发。点击二维码可放大，也可以在应用顶部的「捐献」页扫码。
 
-<a href="assets/donation/china-pay.jpg"><img src="assets/donation/china-pay.jpg" alt="支付宝（左）和微信支付（右）赞助收款码" width="440"></a>
-<a href="assets/donation/venmo.png"><img src="assets/donation/venmo.png" alt="Venmo 赞助收款码，账号 @weetom" width="280"></a>
+| Venmo | 支付宝 | 微信支付 |
+| :---: | :---: | :---: |
+| <a href="assets/donation/qr/venmo.png"><img src="assets/donation/qr/venmo.png" alt="Venmo 收款码" width="172"></a> | <a href="assets/donation/qr/alipay.png"><img src="assets/donation/qr/alipay.png" alt="支付宝收款码" width="172"></a> | <a href="assets/donation/qr/wechat-pay.png"><img src="assets/donation/qr/wechat-pay.png" alt="微信支付收款码" width="172"></a> |
+| @weetom | ¥6.66 | ¥6.66 |
 
 ## 许可证
 

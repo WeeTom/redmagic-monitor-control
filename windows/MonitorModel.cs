@@ -2,7 +2,7 @@ using System;
 
 namespace RedMagicMonitor;
 
-internal enum TransportPage { Ddc, Bluetooth }
+internal enum PanelPage { Ddc, Bluetooth, Donation }
 
 internal enum InputSource : byte { TypeC = 1, DisplayPort = 2, Hdmi1 = 3, Hdmi2 = 4 }
 
