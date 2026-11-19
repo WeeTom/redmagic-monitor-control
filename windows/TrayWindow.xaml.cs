@@ -8,6 +8,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,9 @@ namespace RedMagicMonitor;
 
 public partial class TrayWindow : Window
 {
+    private const double ScreenInset = 14;
+    private const double PreferredPanelHeight = 760;
+
     private readonly TraySettings _settings;
     private readonly DdcTransport _ddc;
     private readonly BleTransport _ble;
@@ -39,7 +43,7 @@ public partial class TrayWindow : Window
     private TransportPage _page;
     private bool _ddcSeen, _ddcTarget, _ddcBusy, _draining;
     private bool _bleSeen, _bleConnected, _bleBusy;
-    private bool _rendering, _positioned, _exiting;
+    private bool _rendering, _dragging, _userPositioned, _exiting;
     private string _ddcStatus = "等待读取显示器";
     private string _bleStatus = "等待读取蓝牙";
     private string _volumeStatus = "等待读取耳机音量";
@@ -102,6 +106,7 @@ public partial class TrayWindow : Window
         SystemEvents.UserPreferenceChanged += PreferenceChanged;
         ApplyTheme();
         Closing += ClosingPanel;
+        SizeChanged += (_, _) => FitToWorkArea();
         PreviewKeyDown += (_, key) =>
         {
             if (key.Key == Key.Escape && IsVisible) { Hide(); key.Handled = true; }
@@ -119,19 +124,33 @@ public partial class TrayWindow : Window
     internal void ShowPanel()
     {
         if (_exiting) return;
-        if (!_positioned)
-        {
-            var area = SystemParameters.WorkArea;
-            Height = Math.Min(Height, Math.Max(MinHeight, area.Height - 28));
-            Left = Math.Max(area.Left, area.Right - Width - 14);
-            Top = Math.Max(area.Top, area.Bottom - Height - 14);
-            _positioned = true;
-        }
+        FitToWorkArea();
         try { Startup.IsChecked = LoginStartup.Enabled(); }
         catch (Exception error) { TrayLog.Write($"读取登录启动设置。{error.Message}"); }
         Show();
         Activate();
         RequestMissingValues();
+    }
+
+    internal void FitToWorkArea()
+    {
+        if (_dragging || _exiting) return;
+        var area = SystemParameters.WorkArea;
+        if (_userPositioned)
+        {
+            var handle = new WindowInteropHelper(this).Handle;
+            var pixels = System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
+            var dpi = VisualTreeHelper.GetDpi(this);
+            area = new Rect(pixels.X / dpi.DpiScaleX, pixels.Y / dpi.DpiScaleY,
+                pixels.Width / dpi.DpiScaleX, pixels.Height / dpi.DpiScaleY);
+        }
+
+        MaxHeight = Math.Max(1, area.Height - 2 * ScreenInset);
+        Height = Math.Min(PreferredPanelHeight, MaxHeight);
+        double right = Math.Max(area.Left, area.Right - Width - ScreenInset);
+        double bottom = Math.Max(area.Top, area.Bottom - ActualHeight - ScreenInset);
+        Left = _userPositioned ? Math.Clamp(Left, Math.Min(area.Left + ScreenInset, right), right) : right;
+        Top = _userPositioned ? Math.Clamp(Top, Math.Min(area.Top + ScreenInset, bottom), bottom) : bottom;
     }
 
     internal async Task PrepareExitAsync()
@@ -153,7 +172,18 @@ public partial class TrayWindow : Window
 
     private void HeaderDrag(object sender, MouseButtonEventArgs args)
     {
-        if (args.LeftButton == MouseButtonState.Pressed) DragMove();
+        if (args.LeftButton != MouseButtonState.Pressed) return;
+        _dragging = true;
+        try
+        {
+            DragMove();
+            _userPositioned = true;
+        }
+        finally
+        {
+            _dragging = false;
+            FitToWorkArea();
+        }
     }
 
     private void HideClicked(object sender, RoutedEventArgs args) => Hide();
@@ -180,7 +210,7 @@ public partial class TrayWindow : Window
         BleTab.Tag = ddc ? null : "selected";
         DdcPage.Visibility = ddc ? Visibility.Visible : Visibility.Collapsed;
         BlePage.Visibility = ddc ? Visibility.Collapsed : Visibility.Visible;
-        Disconnect.Visibility = ddc ? Visibility.Collapsed : Visibility.Visible;
+        Disconnect.Visibility = ddc ? Visibility.Hidden : Visibility.Visible;
         Body.ScrollToTop();
         Render();
     }

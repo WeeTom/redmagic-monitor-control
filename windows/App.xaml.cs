@@ -100,6 +100,8 @@ public partial class App : Application
         const int wmSettingChange = 0x001a, wmDisplayChange = 0x007e, wmDpiChanged = 0x02e0, wmThemeChanged = 0x031a;
         if (message is wmSettingChange or wmDisplayChange or wmDpiChanged or wmThemeChanged)
             Dispatcher.BeginInvoke(new Action(UpdateTrayIcon));
+        if (message is wmSettingChange or wmDisplayChange or wmDpiChanged)
+            Dispatcher.BeginInvoke(new Action(() => _panel?.FitToWorkArea()));
 
         if (_openMessage != 0 && (uint)message == _openMessage)
         {
