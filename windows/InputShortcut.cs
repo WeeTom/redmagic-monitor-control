@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace RedMagicMonitor;
 
@@ -38,22 +39,16 @@ internal static class InputShortcut
 
     private static void WriteShellLink(string path, string executable, string arguments, string description)
     {
-        Type shellType = Type.GetTypeFromProgID("WScript.Shell", throwOnError: true)!;
-        dynamic shell = Activator.CreateInstance(shellType)!;
+        var link = (IShellLinkW)new ShellLinkObject();
         try
         {
-            dynamic link = shell.CreateShortcut(path);
-            try
-            {
-                link.TargetPath = executable;
-                link.Arguments = arguments;
-                link.WorkingDirectory = Path.GetDirectoryName(executable);
-                link.Description = description;
-                link.IconLocation = executable + ",0";
-                link.Save();
-            }
-            finally { Marshal.FinalReleaseComObject((object)link); }
+            link.SetPath(executable);
+            link.SetArguments(arguments);
+            link.SetWorkingDirectory(Path.GetDirectoryName(executable)!);
+            link.SetDescription(description);
+            link.SetIconLocation(executable, 0);
+            ((IPersistFile)link).Save(path, true);
         }
-        finally { Marshal.FinalReleaseComObject((object)shell); }
+        finally { Marshal.FinalReleaseComObject(link); }
     }
 }

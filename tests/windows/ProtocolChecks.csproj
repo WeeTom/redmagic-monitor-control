@@ -15,6 +15,7 @@
     <Compile Include="$(TraySource)\TypeCReturn.cs" Link="TypeCReturn.cs" />
     <Compile Include="$(TraySource)\ShortcutInputSwitcher.cs" Link="ShortcutInputSwitcher.cs" />
     <Compile Include="$(TraySource)\ShortcutChannel.cs" Link="ShortcutChannel.cs" />
+    <Compile Include="$(TraySource)\ShellLink.cs" Link="ShellLink.cs" />
     <Compile Include="$(TraySource)\InputShortcut.cs" Link="InputShortcut.cs" />
     <Compile Include="$(TraySource)\NvDdcVolume.cs" Link="NvDdcVolume.cs" />
     <Compile Include="$(TraySource)\TraySettings.cs" Link="TraySettings.cs" />
