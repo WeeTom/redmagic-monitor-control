@@ -32,11 +32,25 @@ public partial class TrayWindow
         Render();
         try
         {
-            var result = await ShortcutInputSwitcher.SelectAsync(source,
-                !string.IsNullOrWhiteSpace(_settings.BluetoothAddress), _ddc.SetInputAsync,
+            bool ddcBound = await EnsureBound(PanelPage.Ddc);
+            if (!Current()) return new(false, null, L.T("托盘正在退出。"));
+            if (!ddcBound && _ddcDiscovery.Options.Count != 0)
+                return new(false, null, L.T("请选择要控制的显示器。"));
+
+            string? bindingHint = null;
+            var result = await ShortcutInputSwitcher.SelectAsync(source, IsBound(PanelPage.Bluetooth),
+                target => ddcBound ? _ddc.SetInputAsync(target) : Task.FromResult(
+                    new DdcInputResult(DdcInputStatus.Unavailable, null, _ddcStatus)),
                 target => Current() ? _ble.TrySelectInputAsync(target) : Task.FromResult<bool?>(null),
                 (target, stillActive) => Current() ? _ble.AlignInputAsync(target, stillActive) : Task.FromResult(false),
-                ReadCurrentInput, TrayLog.Write);
+                ReadCurrentInput, TrayLog.Write, async () =>
+                {
+                    if (!Current()) return false;
+                    if (await EnsureBound(PanelPage.Bluetooth)) return Current();
+                    bindingHint = _bleDiscovery.Options.Count != 0
+                        ? L.T("未绑定蓝牙显示器，请在蓝牙页选择显示器。") : _bleStatus;
+                    return false;
+                });
             _ddcInput = result.ActiveInput;
             _activeInput.Observe(result.ActiveInput);
             if (result.MenuConfirmed)
@@ -44,8 +58,9 @@ public partial class TrayWindow
                 _bleValues[BleControl.Input] = (byte)source;
                 _bluetoothInput.Observe(source);
             }
-            _ddcStatus = _bleStatus = result.Message;
-            return result.ForTarget(source);
+            string message = bindingHint == null ? result.Message : $"{result.Message} · {bindingHint}";
+            _ddcStatus = _bleStatus = message;
+            return result.ForTarget(source) with { Message = message };
         }
         catch (Exception error)
         {

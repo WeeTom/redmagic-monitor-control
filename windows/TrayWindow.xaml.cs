@@ -66,6 +66,8 @@ public partial class TrayWindow : Window
         internal bool Fresh { get; private set; }
         private DateTime _readAt;
 
+        internal void Clear() { Fresh = false; Last = null; }
+
         internal void Observe(InputSource? source)
         {
             Fresh = source.HasValue;
@@ -231,6 +233,8 @@ public partial class TrayWindow : Window
         InputHeading.Visibility = TransportStatus.Visibility = RefreshButton.Visibility =
             donation ? Visibility.Collapsed : Visibility.Visible;
         Disconnect.Visibility = bluetooth ? Visibility.Visible : Visibility.Hidden;
+        ChooseMonitor.Visibility = donation ? Visibility.Hidden : Visibility.Visible;
+        ShowBindingOptions();
         Body.ScrollToTop();
         Render();
     }
@@ -355,7 +359,7 @@ public partial class TrayWindow : Window
         _options.Add(control, new(row, button));
     }
 
-    private async void RefreshDdc()
+    private async void RefreshDdc(bool discoverAgain = false)
     {
         if (_ddcBusy || _draining || _queued.Count != 0 || _exiting) return;
         _ddcBusy = true;
@@ -365,6 +369,7 @@ public partial class TrayWindow : Window
         Render();
         try
         {
+            if (!await EnsureBound(PanelPage.Ddc, refresh: discoverAgain)) return;
             var snapshot = await _ddc.ReadAsync();
             _ddcSeen = true;
             _ddcTarget = snapshot.TargetPresent;
@@ -546,7 +551,7 @@ public partial class TrayWindow : Window
         QueueLevel(DdcControl.Contrast, 50);
     }
 
-    private async void RefreshBluetooth(bool inputOnly = false)
+    private async void RefreshBluetooth(bool inputOnly = false, bool discoverAgain = false)
     {
         if (_bleBusy || _exiting || _changingInput) return;
         int generation = _sourceGeneration;
@@ -557,6 +562,7 @@ public partial class TrayWindow : Window
         Render();
         try
         {
+            if (!await EnsureBound(PanelPage.Bluetooth, refresh: discoverAgain)) return;
             await CheckActiveInput(generation);
             var snapshot = inputOnly ? await _ble.ReadInputAsync() : await _ble.ReadAsync();
             _bleSeen = true;
@@ -600,7 +606,7 @@ public partial class TrayWindow : Window
     {
         bool sourceChange = control == BleControl.Input;
         bool returnToTypeC = sourceChange && value == (byte)InputSource.TypeC;
-        if (_bleBusy || _exiting || _changingInput || (!sourceChange && !_bleValues.ContainsKey(control))) return;
+        if (!IsBound(PanelPage.Bluetooth) || _bleBusy || _exiting || _changingInput || (!sourceChange && !_bleValues.ContainsKey(control))) return;
         if (sourceChange) BeginInputChange();
         _bleBusy = true;
         var spec = BleProtocol.Specs[control];
@@ -719,8 +725,11 @@ public partial class TrayWindow : Window
         _rendering = true;
         try
         {
+            ChooseMonitor.IsEnabled = BindingOptions.IsEnabled = CanSelectMonitor;
+            string? bound = _page == PanelPage.Bluetooth ? _settings.BluetoothAddress : _settings.MonitorSerial;
+            ChooseMonitor.ToolTip = string.IsNullOrWhiteSpace(bound) ? L.T("选择显示器") : L.T("选择显示器") + " · " + bound;
             RenderInputs(_ddcSources, _ddcInput, _ddcTarget && !_ddcBusy && !_draining && _queued.Count == 0 && !_changingInput);
-            RenderInputs(_bleSources, _activeInput.Fresh ? _activeInput.Last : null, !_bleBusy && !_changingInput);
+            RenderInputs(_bleSources, _activeInput.Fresh ? _activeInput.Last : null, IsBound(PanelPage.Bluetooth) && !_bleBusy && !_changingInput);
             BleInputDetail.Text = _activeInput.Describe(L.T("DDC 活动输入")) + "  ·  " + _bluetoothInput.Describe(L.T("蓝牙报告"));
             ResetDdc.IsEnabled = !_ddcBusy && !_draining && _queued.Count == 0 &&
                 _levels[DdcControl.Brightness].Writable && _levels[DdcControl.Contrast].Writable;
@@ -765,8 +774,8 @@ public partial class TrayWindow : Window
 
     private void RefreshClicked(object sender, RoutedEventArgs args)
     {
-        if (_page == PanelPage.Ddc) RefreshDdc();
-        else if (_page == PanelPage.Bluetooth) RefreshBluetooth();
+        if (_page == PanelPage.Ddc) RefreshDdc(discoverAgain: true);
+        else if (_page == PanelPage.Bluetooth) RefreshBluetooth(discoverAgain: true);
     }
 
     private void ChangeStartup(object sender, RoutedEventArgs args)

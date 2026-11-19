@@ -189,7 +189,7 @@ internal sealed class BleTransport(TraySettings settings)
     private async Task<WinBleLink> Connect()
     {
         if (_link is { IsConnected: false }) Drop();
-        return _link ??= await WinBleLink.ConnectAsync(settings.RequiredBleAddress());
+        return _link ??= await WinBleLink.ConnectAsync(settings.RequiredBleAddress(), settings.BluetoothDeviceId);
     }
 
     private void Drop()

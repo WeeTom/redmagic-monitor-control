@@ -170,7 +170,9 @@
       <Grid MouseLeftButtonDown="HeaderDrag">
         <StackPanel Margin="0,0,38,0">
           <TextBlock TextWrapping="Wrap" Text="{local:Tr Key=红魔显示器}" FontSize="22" FontWeight="SemiBold"/>
-          <TextBlock Text="GM001J 4K" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" FontSize="12"/>
+          <Button x:Name="ChooseMonitor" Content="GM001J 4K  ▾" FontSize="12" MinHeight="20" Padding="4,1"
+                  HorizontalAlignment="Left" ToolTip="{local:Tr Key=选择显示器}" AutomationProperties.Name="{local:Tr Key=选择显示器}"
+                  Click="ChooseMonitorClicked"/>
         </StackPanel>
         <Button HorizontalAlignment="Right" VerticalAlignment="Top" Content="×" Padding="0" Width="31"
                 FontSize="18" AutomationProperties.Name="{local:Tr Key=关闭面板}" Click="HideClicked"/>
@@ -193,6 +195,7 @@
 
       <ScrollViewer Grid.Row="3" x:Name="Body" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel VerticalAlignment="Top">
+          <StackPanel x:Name="BindingOptions"/>
           <DockPanel x:Name="InputHeading" Margin="0,0,0,7">
             <Button x:Name="ExportInputShortcut" DockPanel.Dock="Right" Content="{local:Tr Key=导出快捷方式}"
                     MinHeight="26" Padding="8,2" Click="ChooseShortcutInput"/>

@@ -68,6 +68,17 @@ public partial class App : Application
                 }
                 else
                 {
+                    // An unattended probe can inspect a single verified monitor but never chooses among several or saves a binding.
+                    if (string.IsNullOrWhiteSpace(settings.BluetoothAddress))
+                    {
+                        var candidates = await WinBleLink.DiscoverAsync();
+                        if (candidates.Count == 1)
+                        {
+                            var identity = await WinBleLink.VerifyCandidateAsync(candidates[0]);
+                            settings.BluetoothAddress = identity.Address;
+                            settings.BluetoothDeviceId = identity.DeviceId;
+                        }
+                    }
                     var ble = new BleTransport(settings);
                     try
                     {

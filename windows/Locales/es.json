@@ -104,7 +104,6 @@
   "DDC 未发送": "Comando DDC sin enviar",
   "DDC 活动输入 {0}": "Entrada DDC activa: {0}",
   "视频源未确认": "Entrada de vídeo sin confirmar",
-  "蓝牙地址尚未配置。请检查本机 settings.json。": "Falta la dirección Bluetooth. Comprueba el archivo settings.json local.",
   "读取本机配置失败。{0}": "Error al leer la configuración local. {0}",
   "导出切换到 {0} 的快捷方式": "Exportar acceso directo a la entrada {0}",
   "红魔显示器 - {0}.lnk": "Monitor REDMAGIC - {0}.lnk",
@@ -212,5 +211,12 @@
   "在浏览器中打开项目仓库": "Abrir el repositorio del proyecto en el navegador",
   "日志": "Registro",
   "退出": "Salir",
-  "¥{0:N2}": "{0:N2} CNY"
+  "¥{0:N2}": "{0:N2} CNY",
+  "选择显示器": "Elegir monitor",
+  "未找到显示器。请检查连接后刷新。": "No se encontró ningún monitor. Comprueba la conexión y actualiza.",
+  "请选择要控制的显示器。": "Elige el monitor que quieres controlar.",
+  "正在查找显示器…": "Buscando monitores…",
+  "正在核实显示器身份…": "Verificando la identidad del monitor…",
+  "无法核实所选显示器的身份。": "No se pudo verificar la identidad del monitor seleccionado.",
+  "未绑定蓝牙显示器，请在蓝牙页选择显示器。": "Primero elige un monitor en la pestaña Bluetooth."
 }

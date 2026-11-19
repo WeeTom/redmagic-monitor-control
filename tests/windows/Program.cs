@@ -14,6 +14,7 @@ static void Reject(string bytes)
 }
 
 LocalizationChecks.Run();
+MonitorDiscoveryChecks.Run();
 
 Expect(InputSources.All.Select(InputSources.DdcCode).SequenceEqual(Hex("07 08 05 06")), "DDC source mapping");
 Expect(InputSources.All.Select(source => (byte)source).SequenceEqual(Hex("01 02 03 04")), "BLE source mapping");

@@ -15,7 +15,7 @@ internal static class ShortcutInputSwitcher
     internal static async Task<ShortcutInputResult> SelectAsync(InputSource source, bool bluetoothConfigured,
         Func<InputSource, Task<DdcInputResult>> selectVideo, Func<InputSource, Task<bool?>> selectMenu,
         Func<InputSource, Func<Task<bool>>, Task<bool>> alignMenu, Func<Task<InputSource?>> readVideo,
-        Action<string> log)
+        Action<string> log, Func<Task<bool>>? discoverBluetooth = null)
     {
         var ddc = await selectVideo(source);
         log(L.T("快捷方式 DDC {0}。{1}", InputSources.Name(source), ddc.Message));
@@ -49,7 +49,11 @@ internal static class ShortcutInputSwitcher
 
         bool menuConfirmed = false;
         string menu = L.T("蓝牙未配置");
-        if (bluetoothConfigured)
+        // Discovery is optional after successful DDC and is never allowed to pick
+        // an ambiguous candidate. A failed or unconfirmed DDC write uses the same
+        // BLE safeguards whether the binding was saved earlier or just verified.
+        if (bluetoothConfigured || (ddc.Status != DdcInputStatus.Confirmed &&
+            discoverBluetooth != null && await discoverBluetooth()))
         {
             bool fallbackMayHaveSent = false;
             try

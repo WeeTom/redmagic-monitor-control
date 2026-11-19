@@ -14,7 +14,7 @@ internal static class ShortcutSwitchChecks
         internal bool ReadFails;
         internal bool AlignFails;
 
-        internal Task<ShortcutInputResult> SelectAsync(bool bluetoothConfigured = true) =>
+        internal Task<ShortcutInputResult> SelectAsync(bool bluetoothConfigured = true, Func<Task<bool>>? discover = null) =>
             ShortcutInputSwitcher.SelectAsync(target, bluetoothConfigured,
                 requested =>
                 {
@@ -43,7 +43,7 @@ internal static class ShortcutSwitchChecks
                     Calls.Add("read video");
                     if (ReadFails) throw new IOException("video read unavailable");
                     return Task.FromResult(Active);
-                }, _ => { });
+                }, _ => { }, discover);
     }
 
     internal static async Task RunAsync()
@@ -70,6 +70,29 @@ internal static class ShortcutSwitchChecks
                 fallback.DdcStatus == DdcInputStatus.Unavailable && fallback.ForTarget(target).Confirmed &&
                 fallback.Message.Contains(L.T("DDC 未发送")), $"{target} unsent DDC allows one bound BLE selection");
         }
+
+        var fresh = new FakeMonitor(InputSource.DisplayPort) { Ddc = DdcInputStatus.Unavailable };
+        Task<bool> Unique()
+        {
+            fresh.Calls.Add("discover BLE");
+            return Task.FromResult(true);
+        }
+        var discovered = await fresh.SelectAsync(false, Unique);
+        Expect(discovered.ForTarget(InputSource.DisplayPort).Confirmed &&
+            fresh.Calls.SequenceEqual(["DDC DisplayPort", "discover BLE", "BLE select DisplayPort", "read video"]),
+            "fresh profile discovers a verified BLE fallback after unavailable DDC");
+        fresh.Calls.Clear();
+        await fresh.SelectAsync(false, () => Task.FromResult(false));
+        Expect(fresh.Calls.SequenceEqual(["DDC DisplayPort"]), "ambiguous discovery issues no BLE commands");
+        fresh.Calls.Clear();
+        fresh.Ddc = DdcInputStatus.Confirmed;
+        await fresh.SelectAsync(false, Unique);
+        Expect(fresh.Calls.SequenceEqual(["DDC DisplayPort"]), "confirmed DDC needs no first-time Bluetooth scan");
+        fresh.Calls.Clear();
+        fresh.Ddc = DdcInputStatus.Unconfirmed;
+        await fresh.SelectAsync(false, Unique);
+        Expect(fresh.Calls.Contains("discover BLE") && fresh.Calls.Contains("BLE query DisplayPort") &&
+            !fresh.Calls.Contains("BLE select DisplayPort"), "unconfirmed DDC discovers BLE for guarded menu alignment");
 
         var lostLink = new FakeMonitor(InputSource.TypeC) { Ddc = DdcInputStatus.Unconfirmed, Active = null };
         var lost = await lostLink.SelectAsync();

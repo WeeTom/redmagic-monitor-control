@@ -16,25 +16,54 @@ internal sealed class DdcDisplay : IDisposable
 
     private DdcDisplay(nint handle, string name) => (_handle, GdiName) = (handle, name);
 
-    internal static DdcDisplay Open(string? configuredSerial)
+    internal sealed record Candidate(string Serial, string GdiName, bool CanBind)
+    {
+        internal nint Monitor { get; init; }
+    }
+
+    internal static List<Candidate> Candidates(string? configuredSerial = null)
     {
         var displays = new List<nint>();
         if (!EnumDisplayMonitors(0, 0, (monitor, _, _, _) => { displays.Add(monitor); return true; }, 0))
             throw new IOException(L.T("枚举显示器失败 {0}", LastError()));
 
-        var matches = new List<(nint Monitor, string Name)>();
+        var candidates = new List<Candidate>();
         foreach (var handle in displays)
         {
             var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
             if (!GetMonitorInfo(handle, ref info)) continue;
+            var serials = new List<string>();
+            int activeDevices = 0;
             for (uint index = 0; ; index++)
             {
                 var device = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
                 if (!EnumDisplayDevices(info.Name, index, ref device, 1)) break;
-                if ((device.Flags & 1) != 0 && IsTarget(device.DeviceId, configuredSerial))
-                    matches.Add((handle, info.Name));
+                if ((device.Flags & 1) == 0) continue;
+                activeDevices++;
+                if (TryReadTarget(device.DeviceId, out var serial)) serials.Add(serial);
             }
+            if (serials.Count == 0) continue;
+            // A cloned GDI output is not independently selectable by its physical handle.
+            bool uniqueOutput = activeDevices == 1 &&
+                GetNumberOfPhysicalMonitorsFromHMONITOR(handle, out uint count) && count == 1;
+            foreach (var serial in serials)
+                candidates.Add(new(serial, info.Name, serial.Length != 0 && uniqueOutput) { Monitor = handle });
         }
+        var duplicates = candidates.GroupBy(candidate => candidate.Serial, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string? filter = configuredSerial?.Trim();
+        return candidates.Where(candidate => string.IsNullOrEmpty(filter) ||
+                string.Equals(candidate.Serial, filter, StringComparison.OrdinalIgnoreCase))
+            .Select(candidate => duplicates.Contains(candidate.Serial) ? candidate with { CanBind = false } : candidate)
+            .OrderBy(candidate => candidate.Serial, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.GdiName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    internal static DdcDisplay Open(string? configuredSerial)
+    {
+        // Always resolve a fresh identity so a stale selection cannot target a different monitor.
+        var matches = Candidates(configuredSerial);
         if (matches.Count != 1)
             throw new IOException(L.T("需要唯一活动的 GM001J（EDID 匹配），找到 {0} 台。", matches.Count));
 
@@ -43,21 +72,23 @@ internal sealed class DdcDisplay : IDisposable
             throw new IOException(L.T("读取物理显示器失败 {0}", LastError()));
         if (count != 1)
             throw new IOException(L.T("GM001J 映射到 {0} 个物理句柄。", count));
+        if (!target.CanBind)
+            throw new IOException(L.T("需要唯一活动的 GM001J（EDID 匹配），找到 {0} 台。", 0));
         var physical = new PhysicalMonitor[1];
         if (!GetPhysicalMonitorsFromHMONITOR(target.Monitor, count, physical))
             throw new IOException(L.T("打开 GM001J 失败 {0}", LastError()));
-        return new DdcDisplay(physical[0].Handle, target.Name);
+        return new DdcDisplay(physical[0].Handle, target.GdiName);
     }
 
-    private static bool IsTarget(string? deviceId, string? configuredSerial)
+    private static bool TryReadTarget(string? deviceId, out string serial)
     {
+        serial = "";
         string[] parts = (deviceId ?? "").Split('#');
         if (parts.Length < 3 || !parts[1].Equals(Product, StringComparison.OrdinalIgnoreCase)) return false;
         using var key = Registry.LocalMachine.OpenSubKey(
             $@"SYSTEM\CurrentControlSet\Enum\DISPLAY\{Product}\{parts[2]}\Device Parameters");
-        var serial = EdidSerial(key?.GetValue("EDID") as byte[]);
-        return serial is not null && (string.IsNullOrWhiteSpace(configuredSerial) ||
-            string.Equals(serial, configuredSerial.Trim(), StringComparison.OrdinalIgnoreCase));
+        serial = EdidSerial(key?.GetValue("EDID") as byte[]) ?? "";
+        return true;
     }
 
     internal static string? EdidSerial(byte[]? edid)
@@ -66,13 +97,17 @@ internal sealed class DdcDisplay : IDisposable
             !edid.AsSpan(0, 8).SequenceEqual(new byte[] { 0, 255, 255, 255, 255, 255, 255, 0 }) ||
             edid.Take(128).Sum(value => (int)value) % 256 != 0)
             return null;
-
         for (int offset = 54; offset <= 108; offset += 18)
         {
             if (edid[offset] != 0 || edid[offset + 1] != 0 || edid[offset + 2] != 0 || edid[offset + 3] != 0xff)
                 continue;
-            string serial = Encoding.ASCII.GetString(edid, offset + 5, 13).TrimEnd('\0', '\n', '\r', ' ');
-            if (serial.Length != 0) return serial;
+            var field = edid.AsSpan(offset + 5, 13);
+            int end = field.IndexOfAny((byte)0, (byte)'\n', (byte)'\r');
+            if (end >= 0) field = field[..end];
+            while (field.Length > 0 && field[^1] == ' ') field = field[..^1];
+            if (field.IsEmpty || field[0] == ' ' || field.ContainsAnyExceptInRange((byte)0x20, (byte)0x7e))
+                continue;
+            return Encoding.ASCII.GetString(field);
         }
         return null;
     }

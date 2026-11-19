@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -17,6 +16,7 @@ internal sealed class TraySettings
     public string LastPage { get; set; } = "Ddc";
     public string? MonitorSerial { get; set; }
     public string? BluetoothAddress { get; set; }
+    public string? BluetoothDeviceId { get; set; }
 
     internal static void SetDataDirectory(string path) =>
         DirectoryPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
@@ -29,10 +29,8 @@ internal sealed class TraySettings
 
     internal ulong RequiredBleAddress()
     {
-        var value = BluetoothAddress?.Trim().Replace(":", "").Replace("-", "");
-        if (value?.Length != 12 || !ulong.TryParse(value, NumberStyles.HexNumber,
-                CultureInfo.InvariantCulture, out var address) || address == 0)
-            throw new InvalidOperationException(L.T("蓝牙地址尚未配置。请检查本机 settings.json。"));
+        if (!MonitorDiscovery.TryAddress(BluetoothAddress, out var address))
+            throw new InvalidOperationException(L.T("未绑定蓝牙显示器，请在蓝牙页选择显示器。"));
         return address;
     }
 
@@ -48,6 +46,22 @@ internal sealed class TraySettings
             TrayLog.Write(L.T("读取本机配置失败。{0}", error.Message));
         }
         return new();
+    }
+
+    internal void BindDdc(string serial)
+    {
+        var previous = MonitorSerial;
+        MonitorSerial = serial;
+        try { Save(); }
+        catch { MonitorSerial = previous; throw; }
+    }
+
+    internal void BindBluetooth(string address, string deviceId)
+    {
+        var previous = (BluetoothAddress, BluetoothDeviceId);
+        (BluetoothAddress, BluetoothDeviceId) = (address, deviceId);
+        try { Save(); }
+        catch { (BluetoothAddress, BluetoothDeviceId) = previous; throw; }
     }
 
     internal void Save()

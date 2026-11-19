@@ -12,7 +12,7 @@ using Windows.Storage.Streams;
 
 namespace RedMagicMonitor;
 
-internal sealed class WinBleLink : IDisposable
+internal sealed partial class WinBleLink : IDisposable
 {
     private readonly BluetoothLEDevice _device;
     private readonly GattDeviceService _service;
@@ -34,15 +34,17 @@ internal sealed class WinBleLink : IDisposable
     internal bool IsConnected => _session.SessionStatus == GattSessionStatus.Active ||
         _device.ConnectionStatus == BluetoothConnectionStatus.Connected;
 
-    internal static async Task<WinBleLink> ConnectAsync(ulong address)
+    internal static async Task<WinBleLink> ConnectAsync(ulong address, string? deviceId = null)
     {
         string? knownDeviceError = null;
         try
         {
-            var known = await Wait(BluetoothLEDevice.FromBluetoothAddressAsync(address), L.T("查找缓存中的显示器蓝牙"));
+            var known = await Wait(string.IsNullOrWhiteSpace(deviceId) ? BluetoothLEDevice.FromBluetoothAddressAsync(address)
+                : BluetoothLEDevice.FromIdAsync(deviceId), L.T("查找缓存中的显示器蓝牙"));
             if (known is not null) return await ConnectDevice(known, address);
         }
-        catch (Exception error) when (error is IOException or System.Runtime.InteropServices.COMException)
+        catch (Exception error) when (error is IOException or System.Runtime.InteropServices.COMException ||
+            (deviceId != null && error is UnauthorizedAccessException))
         {
             knownDeviceError = error.Message;
             TrayLog.Write(L.T("缓存中的蓝牙设备。{0}", knownDeviceError));
@@ -77,20 +79,11 @@ internal sealed class WinBleLink : IDisposable
             control = services.Control;
             using (var identity = services.Identity)
             {
-                var serial = await Characteristic(identity, 0xffd2);
-                if (!serial.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Read))
-                    throw new IOException(L.T("蓝牙身份特征 FFD2 不可读。"));
-                var reply = await Wait(serial.ReadValueAsync(BluetoothCacheMode.Uncached), L.T("读取蓝牙身份"));
-                Check(reply.Status, L.T("读取蓝牙身份"));
-                if (!BleProtocol.IsIdentity(Bytes(reply.Value), address))
+                if (!BleProtocol.IsIdentity(await ReadIdentity(identity), address))
                     throw new UnauthorizedAccessException(L.T("FFD2 返回的蓝牙身份与本机配置不符。"));
             }
 
-            var tx = await Characteristic(control, 0xffe1);
-            var rx = await Characteristic(control, 0xffe2);
-            if (!tx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.WriteWithoutResponse) ||
-                !rx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify))
-                throw new IOException(L.T("蓝牙控制服务没有所需的 FFE1 写入或 FFE2 通知属性。"));
+            var (tx, rx) = await ControlCharacteristics(control);
 
             connection = new WinBleLink(device, control, tx, rx, session);
             Check(await Wait(rx.WriteClientCharacteristicConfigurationDescriptorAsync(
@@ -110,6 +103,26 @@ internal sealed class WinBleLink : IDisposable
             }
             throw;
         }
+    }
+
+    private static async Task<byte[]> ReadIdentity(GattDeviceService identity)
+    {
+        var serial = await Characteristic(identity, 0xffd2);
+        if (!serial.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Read))
+            throw new IOException(L.T("蓝牙身份特征 FFD2 不可读。"));
+        var reply = await Wait(serial.ReadValueAsync(BluetoothCacheMode.Uncached), L.T("读取蓝牙身份"));
+        Check(reply.Status, L.T("读取蓝牙身份"));
+        return Bytes(reply.Value);
+    }
+
+    private static async Task<(GattCharacteristic Tx, GattCharacteristic Rx)> ControlCharacteristics(GattDeviceService control)
+    {
+        var tx = await Characteristic(control, 0xffe1);
+        var rx = await Characteristic(control, 0xffe2);
+        if (!tx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.WriteWithoutResponse) ||
+            !rx.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify))
+            throw new IOException(L.T("蓝牙控制服务没有所需的 FFE1 写入或 FFE2 通知属性。"));
+        return (tx, rx);
     }
 
     internal async Task SendAsync(byte[] value)
