@@ -1,6 +1,40 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.7 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.3 支持 x64。[Windows 构建与配置](windows/README.md)
+**简体中文** · [English](README.en.md)
+
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。
+
+1.0.0 的 macOS 和 Windows 界面跟随系统语言，支持简体中文、繁体中文、英语、日语、韩语、西班牙语、俄语、法语、德语和葡萄牙语。
+
+## 懒人福音
+
+- **macOS（Apple Silicon，macOS 14 或更高版本）**　打开 DMG，把里面的应用拖进「应用程序」，再从那里打开。点击 macOS 菜单栏里的显示器图标即可打开控制面板。[下载 macOS 1.0.0 DMG](https://github.com/WeeTom/redmagic-monitor-control/releases/download/v1.0.0/RedMagicMonitor-1.0.0-macOS-arm64.dmg)
+- **Windows x64**　解压 ZIP，将文件夹放在准备长期使用的位置，双击 `RedMagicMonitor.exe`。点击任务栏时钟旁的显示器图标打开面板。找不到图标时，展开隐藏图标（⌃）。[下载 Windows 1.0.0 ZIP](https://github.com/WeeTom/redmagic-monitor-control/releases/download/v1.0.0/RedMagicMonitor-1.0.0-windows-x64.zip)
+
+**校验下载。** 在下载目录打开终端，macOS 运行 `shasum -a 256 RedMagicMonitor-1.0.0-macOS-arm64.dmg`，Windows PowerShell 运行 `Get-FileHash .\RedMagicMonitor-1.0.0-windows-x64.zip -Algorithm SHA256`。将结果与发布页上对应文件的 SHA-256 值核对。[1.0.0 发布页](https://github.com/WeeTom/redmagic-monitor-control/releases/tag/v1.0.0)
+
+**首次打开。** macOS 版没有 Developer ID 签名，也未经 Apple 公证。如果 macOS 拦截，先从「应用程序」尝试打开一次，再到「系统设置」→「隐私与安全性」，在该应用旁选择「仍要打开」并确认。如果 Windows SmartScreen 提示风险，确认文件来自上面的发布页，且系统提供该选项时，选择「更多信息」→「仍要运行」。
+
+**首次绑定。** 按需设置 DDC 或蓝牙，也可以同时设置两者。
+
+- **macOS**　在「终端」运行下方命令，从 GM001J 的条目中读取 `AlphanumericSerialNumber`，将它用作 `MonitorSerial`。蓝牙地址取自显示器广播名末尾的 12 位十六进制数，每两位之间加冒号。替换示例值，只运行所需通道的 `defaults write` 行，然后退出并从「应用程序」重新打开。使用蓝牙时，请开启显示器菜单里的蓝牙，并允许系统的蓝牙权限请求。若命令没有列出序列号，可用下文的 `m1ddc` 方法。[macOS 快速开始](#macos-快速开始)
+
+  ```sh
+  ioreg -lw0 -k DisplayAttributes | grep '"DisplayAttributes"' | grep -i GM001J | grep -oE '"AlphanumericSerialNumber"[[:space:]]*=[[:space:]]*"[^"]+"'
+  defaults write com.local.redmagic-display MonitorSerial -string 'YOUR_EDID_SERIAL'
+  defaults write com.local.redmagic-display BluetoothAddress -string 'AA:BB:CC:DD:EE:FF'
+  ```
+
+- **Windows**　在 `%LOCALAPPDATA%\RedMagicMonitor\settings.json` 中填写显示器的 `MonitorSerial`（EDID 序列号）和需要使用的 `BluetoothAddress`，再退出并重新运行 EXE。仅用 DDC 且系统中只有一台 EDID 有效的 GM001J 时，可以直接使用。配置示例见 Windows 说明。[Windows 本机配置](windows/README.md#本机配置)
+
+## 赞助 · Donation
+
+如果这个工具帮到了你，欢迎扫码支持后续开发。点击下方二维码可放大，或在应用的「捐献」页扫描同一组收款码。
+
+| Venmo | 支付宝 | 微信支付 |
+| :---: | :---: | :---: |
+| <a href="assets/donation/qr/venmo.png"><img src="assets/donation/qr/venmo.png" alt="Venmo 收款码" width="172"></a> | <a href="assets/donation/qr/alipay.png"><img src="assets/donation/qr/alipay.png" alt="支付宝收款码" width="172"></a> | <a href="assets/donation/qr/wechat-pay.png"><img src="assets/donation/qr/wechat-pay.png" alt="微信支付收款码" width="172"></a> |
+| @weetom | ¥6.66 | ¥6.66 |
 
 ## macOS 快速开始
 
@@ -45,16 +79,16 @@ open "build/红魔显示器.app"
 
 ## Windows 快速开始
 
-下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.3](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.3/RedMagicMonitor.exe)
+升级时先退出旧托盘程序，然后用 1.0.0 ZIP 中的 EXE 替换原位置的程序。新版会继续使用已有的设备绑定和快捷方式。[下载与运行](#懒人福音)
 
 在任一控制页的输入源区域点击「导出快捷方式」，选择接口并保存 `.lnk`。打开它即可切源，托盘程序会按需启动。四个接口均优先使用 DDC，必要时通过已绑定的蓝牙接续处理。快捷方式指向导出时的 EXE，移动程序后可重新导出。
 
-如需自行构建，可下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
+如需自行构建，可下载并解压源码。[下载 1.0.0 源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/tags/v1.0.0.zip)
 
 安装 .NET 10 SDK 后，可在 PowerShell 中克隆仓库并启动托盘程序。
 
 ```powershell
-git clone https://github.com/WeeTom/redmagic-monitor-control.git
+git clone --branch v1.0.0 https://github.com/WeeTom/redmagic-monitor-control.git
 cd redmagic-monitor-control
 dotnet run --project .\windows\RedMagicMonitor.csproj -c Release -- --show
 ```
@@ -81,15 +115,6 @@ swiftc macos/Features.swift macos/InputShortcutExporter.swift tests/input_shortc
 ```
 
 可用 `--preview /absolute/path.png` 渲染演示界面，加 `--preview-bluetooth` 可预览蓝牙页，加 `--preview-donation` 可预览捐献页。退出常驻应用后，`--probe` 会读取 DDC 状态，`--probe-keepalive` 检查两轮蓝牙查询是否复用同一连接。日志保存在 `~/Library/Logs/RedMagicDisplay/`。
-
-## 赞助 · Donation
-
-如果这个工具帮到了你，欢迎扫码支持后续开发。点击下方二维码可放大，或在应用的「捐献」页扫描同一组收款码。
-
-| Venmo | 支付宝 | 微信支付 |
-| :---: | :---: | :---: |
-| <a href="assets/donation/qr/venmo.png"><img src="assets/donation/qr/venmo.png" alt="Venmo 收款码" width="172"></a> | <a href="assets/donation/qr/alipay.png"><img src="assets/donation/qr/alipay.png" alt="支付宝收款码" width="172"></a> | <a href="assets/donation/qr/wechat-pay.png"><img src="assets/donation/qr/wechat-pay.png" alt="微信支付收款码" width="172"></a> |
-| @weetom | ¥6.66 | ¥6.66 |
 
 ## 许可证
 

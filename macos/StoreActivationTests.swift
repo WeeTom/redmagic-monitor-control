@@ -112,12 +112,12 @@ func runStoreActivationTests() {
     precondition(transport.writes == ["luminance", "contrast"] && bluetooth.settingWriteCount == 0)
     transport.rejectContrast = true
     store.resetDefaults(); awaitIdle(store)
-    precondition(store.message.contains("亮度已恢复") && store.message.contains("对比度未确认"))
+    precondition(store.message.contains(tr("%@已恢复到 50。", tr("亮度"))) && store.message.contains(tr("%@未确认恢复，请刷新检查", tr("对比度"))))
     precondition(store.ddcValues["volume"] == 2 && transport.writes.count == 4)
 
     store.selectChannel(.ddc)
     store.setDDC("input", 8); awaitIdle(store)
-    precondition(store.values[.input] == 2 && store.noteBLE(.input).isEmpty && store.noteDDC("luminance") == "上次确认")
+    precondition(store.values[.input] == 2 && store.noteBLE(.input).isEmpty && store.noteDDC("luminance") == tr("上次确认"))
     precondition(bluetooth.inputWrites.count == 1 && bluetooth.inputWrites[0].target == 2 && bluetooth.inputWrites[0].forced)
     store.selectChannel(.bluetooth)
     let beforeReopen = bluetooth.queryWriteCount
@@ -127,7 +127,7 @@ func runStoreActivationTests() {
     bluetooth.externalInput(1)
     bluetooth.deferFirstInput = true
     store.panelOpened(); store.panelOpened()
-    precondition(store.noteBLE(.input) == "上次确认" && store.inputMismatch == nil)
+    precondition(store.noteBLE(.input) == tr("上次确认") && store.inputMismatch == nil)
     precondition(bluetooth.queries.last == .input && bluetooth.queryWriteCount == beforeReopen + 1)
     bluetooth.releaseInput()
     store.selectChannel(.ddc); awaitIdle(store)
@@ -136,9 +136,9 @@ func runStoreActivationTests() {
     precondition(bluetooth.queryWriteCount == beforeReopen + 1 && bluetooth.inputWrites.count == 1)
     store.set(.input, 1)
     precondition(bluetooth.inputWrites.last?.forced == true && bluetooth.inputWrites.count == 2)
-    precondition(store.inputMismatch == nil && store.noteDDC("input") == "上次确认")
+    precondition(store.inputMismatch == nil && store.noteDDC("input") == tr("上次确认"))
     store.disconnectBluetooth()
-    precondition(store.noteBLE(.input) == "上次确认")
+    precondition(store.noteBLE(.input) == tr("上次确认"))
 
     testDDCMenuSync(cache: cache, awaitIdle: awaitIdle)
 
@@ -163,22 +163,22 @@ private func testDDCMenuSync(cache: URL, awaitIdle: (DisplayStore) -> Void) {
                              loadCache: false, canSyncMenu: { authorized })
     store.setDDC("input", 8); awaitIdle(store)
     precondition(bluetooth.connectionCount == 0 && bluetooth.inputWrites.isEmpty)
-    precondition(store.message.contains("可在蓝牙页"))
+    precondition(store.message == tr("%@。可在蓝牙页选择 %@ 同步显示器菜单", tr("DDC 已确认 %@", "DP"), "DP"))
 
     authorized = true
     store.setDDC("input", 6); awaitIdle(store)
     precondition(bluetooth.inputWrites.count == 1 && bluetooth.inputWrites[0].target == 4)
-    precondition(bluetooth.inputWrites[0].forced && store.message.contains("菜单为 HDMI 2"))
+    precondition(bluetooth.inputWrites[0].forced && store.message == tr("%@，蓝牙已确认菜单为 %@", tr("DDC 已确认 %@", "HDMI 2"), "HDMI 2"))
     bluetooth.rejectInputWrite = true
     store.setDDC("input", 5); awaitIdle(store)
-    precondition(store.noteDDC("input").isEmpty && store.noteBLE(.input) == "待确认")
-    precondition(store.message.contains("蓝牙未能确认"))
+    precondition(store.noteDDC("input").isEmpty && store.noteBLE(.input) == tr("待确认"))
+    precondition(store.message == tr("%@。蓝牙未能确认菜单设置，请在蓝牙页重试", tr("DDC 已确认 %@", "HDMI 1")))
 
     transport.failInputRead = true
     bluetooth.rejectInputWrite = false
     store.setDDC("input", 7); awaitIdle(store)
-    precondition(store.message.contains("活动输入尚未确认") && store.message.contains("菜单为 Type-C"))
-    precondition(store.noteDDC("input") == "待确认" && store.noteBLE(.input).isEmpty)
+    precondition(store.message == tr("%@，蓝牙已确认菜单为 %@", tr("DDC 已发送，活动输入尚未确认"), "Type-C"))
+    precondition(store.noteDDC("input") == tr("待确认") && store.noteBLE(.input).isEmpty)
 
     transport.failInputRead = false
     let before = bluetooth.inputWrites.count

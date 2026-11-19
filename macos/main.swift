@@ -85,10 +85,10 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
         }
         statusItem=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
         if let button=statusItem.button {
-            button.image=NSImage(systemSymbolName:"display",accessibilityDescription:"红魔显示器控制")
+            button.image=NSImage(systemSymbolName:"display",accessibilityDescription:tr("红魔显示器控制"))
             button.title=""
             button.image?.isTemplate=true;button.target=self;button.action=#selector(clicked)
-            button.sendAction(on:[.leftMouseUp,.rightMouseUp]);button.toolTip="红魔显示器 · 输入源与画面控制"
+            button.sendAction(on:[.leftMouseUp,.rightMouseUp]);button.toolTip=tr("红魔显示器 · 输入源与画面控制")
         }
         popover.behavior = .transient
         let host = NSHostingController(rootView: ControlPanel(store: store))
@@ -105,9 +105,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
     @objc func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu=NSMenu()
-            menu.addItem(withTitle:"打开红魔显示器",action:#selector(show),keyEquivalent:"").target=self
-            menu.addItem(withTitle:"刷新设置",action:#selector(refresh),keyEquivalent:"").target=self
-            menu.addItem(.separator());menu.addItem(withTitle:"退出",action:#selector(quit),keyEquivalent:"q").target=self
+            menu.addItem(withTitle:tr("打开红魔显示器"),action:#selector(show),keyEquivalent:"").target=self
+            menu.addItem(withTitle:tr("刷新设置"),action:#selector(refresh),keyEquivalent:"").target=self
+            menu.addItem(.separator());menu.addItem(withTitle:tr("退出"),action:#selector(quit),keyEquivalent:"q").target=self
             statusItem.menu=menu;statusItem.button?.performClick(nil);statusItem.menu=nil
         } else if popover.isShown { popover.performClose(nil) } else { show() }
     }

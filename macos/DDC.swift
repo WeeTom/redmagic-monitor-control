@@ -58,9 +58,9 @@ enum DDCOperationError:LocalizedError {
     case superseded,unavailable,unconfirmed
     var errorDescription:String? {
         switch self {
-        case .superseded:return "已由较新的调节取代"
-        case .unavailable:return "DDC 暂未返回有效状态，保留上次确认的数值"
-        case .unconfirmed:return "设置已发送，尚未回读确认；请刷新检查实际状态"
+        case .superseded:return tr("已由较新的调节取代")
+        case .unavailable:return tr("DDC 暂未返回有效状态，保留上次确认的数值")
+        case .unconfirmed:return tr("设置已发送，尚未回读确认；请刷新检查实际状态")
         }
     }
 }
@@ -125,7 +125,7 @@ final class DDCController {
         }
     }
     func write(_ feature:String,value:Int,completion:@escaping Completion) {
-        guard Self.canWrite(feature,value) else { completion(.failure(DisplayError("设置值超出范围")));return }
+        guard Self.canWrite(feature,value) else { completion(.failure(DisplayError(tr("设置值超出范围"))));return }
         worker.async {
             if let old=self.writes.removeValue(forKey:feature) { self.coalescedCount+=1;self.deliver([old.completion],.failure(DDCOperationError.superseded)) }
             if let old=self.queries.removeValue(forKey:feature) { self.deliver(old.completions,.failure(DDCOperationError.superseded)) }

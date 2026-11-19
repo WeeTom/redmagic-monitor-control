@@ -75,12 +75,12 @@ private struct SliderSetting: View {
                     set: { target in
                         if let value, target != value { commit(target) }
                     }
-                ), in: 0...100) { Text("微调" + title) }
+                ), in: 0...100) { Text(tr("微调%@", title)) }
                 .labelsHidden()
                 .controlSize(.small)
                 .disabled(value == nil)
-                .accessibilityValue(value.map(String.init) ?? "尚未读取")
-                .help(title + "每次调节 1")
+                .accessibilityValue(value.map(String.init) ?? tr("尚未读取"))
+                .help(tr("%@每次调节 1", title))
             }
             MonitorSlider(title: title, value: value, onPreview: { draggedValue = $0 }, onCommit: commit)
         }
@@ -135,22 +135,22 @@ struct ControlPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             inputCard
             if isDDC {
-                SettingsCard(title: "显示与声音", symbol: "slider.horizontal.3") {
-                    setting("luminance", title: "屏幕亮度")
-                    setting("contrast", title: "对比度")
+                SettingsCard(title: tr("显示与声音"), symbol: "slider.horizontal.3") {
+                    setting("luminance", title: tr("屏幕亮度"))
+                    setting("contrast", title: tr("对比度"))
                     Divider()
-                    setting("volume", title: "耳机音量")
+                    setting("volume", title: tr("耳机音量"))
                     if store.ddcValues["luminance"] == nil {
-                        hint("等待读取亮度。若读取失败，请切回 Type-C 后刷新。")
+                        hint(tr("等待读取亮度。若读取失败，请切回 Type-C 后刷新。"))
                     }
                 }
             } else {
-                SettingsCard(title: "画面", symbol: "rectangle.on.rectangle") {
+                SettingsCard(title: tr("画面"), symbol: "rectangle.on.rectangle") {
                     selector(.mode)
                     selector(.hdr)
                 }
-                SettingsCard(title: "氛围灯", symbol: "lightbulb") {
-                    selector(.lightPower, title: "灯光开关")
+                SettingsCard(title: tr("氛围灯"), symbol: "lightbulb") {
+                    selector(.lightPower, title: tr("灯光开关"))
                     selector(.lightEffect)
                     selector(.lightLevel)
                     if store.values[.lightEffect] == 7 {
@@ -168,28 +168,44 @@ struct ControlPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var appTitle: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "display")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.red)
+                .frame(width: 32, height: 32)
+                .background(.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityHidden(true)
+            Text(tr("红魔显示器")).font(.system(size: 17, weight: .semibold))
+        }
+    }
+
+    private var pagePicker: some View {
+        Picker(tr("页面"), selection: page) {
+            Text("DDC").tag(Page.control(.ddc))
+            Text(tr("蓝牙")).tag(Page.control(.bluetooth))
+            Text(tr("捐献")).tag(Page.donation)
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize()
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 9) {
-                Image(systemName: "display")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(.red)
-                    .frame(width: 32, height: 32)
-                    .background(.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
-                Text("红魔显示器").font(.system(size: 17, weight: .semibold))
-                Spacer()
-                Picker("页面", selection: page) {
-                    Text("DDC").tag(Page.control(.ddc))
-                    Text("蓝牙").tag(Page.control(.bluetooth))
-                    Text("捐献").tag(Page.donation)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 9) {
+                    appTitle.fixedSize()
+                    Spacer(minLength: 4)
+                    pagePicker
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .fixedSize()
+                VStack(alignment: .leading, spacing: 8) {
+                    appTitle
+                    pagePicker
+                }
             }
             if store.showingDonations {
-                Text("用对应的 App 扫码支持项目。")
+                Text(tr("用对应的 App 扫码支持项目。"))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                     .frame(height: 30)
             } else {
@@ -209,32 +225,32 @@ struct ControlPanel: View {
             Text(store.status)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
             if !isDDC {
-                Button(store.bluetoothConnected ? "断开" : "连接并读取") {
+                Button(store.bluetoothConnected ? tr("断开") : tr("连接并读取")) {
                     if store.bluetoothConnected { store.disconnectBluetooth() } else { store.refresh() }
                 }
                 .disabled(!store.bluetoothConnected && store.pendingBLE > 0)
-                .help("蓝牙空闲 5 分钟后自动断开")
+                .help(tr("蓝牙空闲 5 分钟后自动断开"))
             }
             Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                .accessibilityLabel("刷新当前页面").help("重新读取当前通道的设置")
+                .accessibilityLabel(tr("刷新当前页面")).help(tr("重新读取当前通道的设置"))
         }
         .controlSize(.small)
-        .frame(height: 30)
+        .frame(minHeight: 30)
     }
 
     private var inputCard: some View {
-        SettingsCard(title: isDDC ? "活动输入源" : "显示器菜单输入源", symbol: "cable.connector", accessory: {
-            Menu("导出快捷方式…") {
+        SettingsCard(title: isDDC ? tr("活动输入源") : tr("显示器菜单输入源"), symbol: "cable.connector", accessory: {
+            Menu(tr("导出快捷方式…")) {
                 ForEach(MonitorInput.ports, id: \.ddc) { port in
                     Button(port.name) { exportShortcut(for: port) }
                 }
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("选择目标接口，导出独立运行的切源应用")
+            .help(tr("选择目标接口，导出独立运行的切源应用"))
         }) {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())], spacing: 6) {
                 ForEach(isDDC ? DDCController.inputChoices : Feature.input.choices, id: \.0) { value, title in
@@ -271,12 +287,12 @@ struct ControlPanel: View {
                 hint([name, inputNote].compactMap { $0 }.joined(separator: " · "))
             }
             if let mismatch = store.inputMismatch {
-                let action = isDDC ? "在蓝牙页选择" : "选择"
-                hint("活动输入为 \(mismatch.active)，菜单为 \(mismatch.menu)。\(action) \(mismatch.active) 可同步菜单。")
+                let action = isDDC ? tr("在蓝牙页选择") : tr("选择")
+                hint(tr("活动输入为 %@，菜单为 %@。%@ %@ 可同步菜单。", mismatch.active, mismatch.menu, action, mismatch.active))
             } else if isDDC {
-                hint("切换输入时，会尝试通过已授权的蓝牙同步显示器菜单。")
+                hint(tr("切换输入时，会尝试通过已授权的蓝牙同步显示器菜单。"))
             } else {
-                hint("选择接口会同时切换画面和显示器菜单。")
+                hint(tr("选择接口会同时切换画面和显示器菜单。"))
             }
         }
     }
@@ -288,20 +304,20 @@ struct ControlPanel: View {
             let address = MonitorIdentity.address
             do {
                 guard !serial.isEmpty || address != nil else {
-                    throw DisplayError("请先绑定显示器的 DDC 序列号或蓝牙地址，然后重新打开红魔显示器。")
+                    throw DisplayError(tr("请先绑定显示器的 DDC 序列号或蓝牙地址，然后重新打开红魔显示器。"))
                 }
                 let panel = NSSavePanel()
-                panel.title = "导出快捷方式应用"
+                panel.title = tr("导出快捷方式应用")
                 let route: String
-                if serial.isEmpty { route = "通过蓝牙切源。" }
-                else if address == nil { route = "通过 DDC 切源。配置显示器蓝牙地址后可导出支持自动回退的版本。" }
-                else { route = "优先使用 DDC，必要时自动尝试蓝牙。" }
-                panel.message = "目标接口为 \(port.name)。" + route
-                panel.prompt = "导出"
+                if serial.isEmpty { route = tr("通过蓝牙切源。") }
+                else if address == nil { route = tr("通过 DDC 切源。配置显示器蓝牙地址后可导出支持自动回退的版本。") }
+                else { route = tr("优先使用 DDC，必要时自动尝试蓝牙。") }
+                panel.message = tr("目标接口为 %@。%@", port.name, route)
+                panel.prompt = tr("导出")
                 panel.allowedContentTypes = [.applicationBundle]
                 panel.canCreateDirectories = true
                 panel.isExtensionHidden = false
-                panel.nameFieldStringValue = "切换到\(port.name).app"
+                panel.nameFieldStringValue = tr("切换到%@.app", port.name)
                 NSApp.activate()
                 guard await panel.begin() == .OK, let destination = panel.url else { return }
                 let replaceExisting = FileManager.default.fileExists(atPath: destination.path)
@@ -312,7 +328,7 @@ struct ControlPanel: View {
                 NSWorkspace.shared.activateFileViewerSelecting([destination])
             } catch {
                 let alert = NSAlert()
-                alert.messageText = "无法导出快捷方式"
+                alert.messageText = tr("无法导出快捷方式")
                 alert.informativeText = error.localizedDescription
                 alert.runModal()
             }
@@ -347,24 +363,41 @@ struct ControlPanel: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var footer: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Button(store.isResettingDefaults ? "正在恢复…" : "恢复默认设置") { store.resetDefaults() }
-                    .disabled(store.isResettingDefaults)
-                    .help("通过 DDC 将亮度和对比度各设为 50")
-                Text("亮度 50 · 对比度 50").font(.system(size: 10)).foregroundStyle(.secondary)
-            }
-            .opacity(store.showingDonations ? 0 : 1)
-            .disabled(store.showingDonations)
-            .accessibilityHidden(store.showingDonations)
-            Spacer()
-            Toggle("登录时启动", isOn: Binding(get: { store.loginEnabled }, set: store.toggleLogin))
+    private var resetControls: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button(store.isResettingDefaults ? tr("正在恢复…") : tr("恢复默认设置")) { store.resetDefaults() }
+                .disabled(store.isResettingDefaults)
+                .help(tr("通过 DDC 将亮度和对比度各设为 50"))
+            Text(tr("亮度 50 · 对比度 50")).font(.system(size: 10)).foregroundStyle(.secondary)
+        }
+        .opacity(store.showingDonations ? 0 : 1)
+        .disabled(store.showingDonations)
+        .accessibilityHidden(store.showingDonations)
+    }
+
+    private var appActions: some View {
+        HStack(spacing: 10) {
+            Toggle(tr("登录时启动"), isOn: Binding(get: { store.loginEnabled }, set: store.toggleLogin))
                 .toggleStyle(.switch)
                 .controlSize(.mini)
             Divider().frame(height: 14)
-            Button("日志") { NSWorkspace.shared.open(store.log.directory) }
-            Button("退出") { NSApplication.shared.terminate(nil) }
+            Button(tr("日志")) { NSWorkspace.shared.open(store.log.directory) }
+            Button(tr("退出")) { NSApplication.shared.terminate(nil) }
+        }
+    }
+
+    private var footer: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                resetControls.fixedSize()
+                Spacer(minLength: 4)
+                appActions.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 7) {
+                resetControls
+                appActions
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.borderless)
         .font(.system(size: 11))

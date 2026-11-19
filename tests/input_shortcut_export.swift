@@ -28,7 +28,14 @@ struct InputShortcutExportChecks {
         for file in ["AppIcon.icns", "LICENSE.txt", "m1ddc-LICENSE.txt"] {
             try Data(file.utf8).write(to: resources.appendingPathComponent(file))
         }
+        let language = resources.appendingPathComponent("ja.lproj")
+        try fm.createDirectory(at: language, withIntermediateDirectories: false)
+        let localizedPurpose = "登録済みのディスプレイの入力を切り替えます。"
+        let strings = ["通过蓝牙连接已绑定的红魔显示器，将其切换到所选输入源。": localizedPurpose]
+        let table = try PropertyListSerialization.data(fromPropertyList: strings, format: .xml, options: 0)
+        try table.write(to: language.appendingPathComponent("Localizable.strings"))
         let destination = root.appendingPathComponent("快捷 $(example) & DP.app")
+        let exportedLanguage = destination.appendingPathComponent("Contents/Resources/ja.lproj")
         var identifier: String?
         for port in MonitorInput.ports {
             try InputShortcutExporter.export(port: port, serial: " Test EDID ", to: destination,
@@ -39,6 +46,9 @@ struct InputShortcutExportChecks {
             precondition(plist["GMBluetoothAddress"] == nil)
             precondition(plist["NSBluetoothAlwaysUsageDescription"] == nil)
             precondition(plist["NSBluetoothPeripheralUsageDescription"] == nil)
+            let exportedTable = try Data(contentsOf: exportedLanguage.appendingPathComponent("Localizable.strings"))
+            precondition(exportedTable == table)
+            precondition(!fm.fileExists(atPath: exportedLanguage.appendingPathComponent("InfoPlist.strings").path))
             precondition(plist["LSUIElement"] as? Bool == true)
             precondition(plist["CFBundleName"] as? String == destination.deletingPathExtension().lastPathComponent)
             let current = plist["CFBundleIdentifier"] as! String
@@ -65,6 +75,10 @@ struct InputShortcutExportChecks {
             precondition(plist["GMBluetoothAddress"] as? String == "0A:B2:3C:04:5E:6F")
             precondition(!(plist["NSBluetoothAlwaysUsageDescription"] as? String ?? "").isEmpty)
             precondition(!(plist["NSBluetoothPeripheralUsageDescription"] as? String ?? "").isEmpty)
+            let purposeData = try Data(contentsOf: exportedLanguage.appendingPathComponent("InfoPlist.strings"))
+            let purposes = try PropertyListSerialization.propertyList(from: purposeData, format: nil) as! [String: String]
+            precondition(purposes == ["NSBluetoothAlwaysUsageDescription": localizedPurpose,
+                                      "NSBluetoothPeripheralUsageDescription": localizedPurpose])
             precondition(plist["CFBundleIdentifier"] as? String == identifier)
         }
         refuses { try export(source) }

@@ -108,9 +108,9 @@ func runSelfTests() {
     precondition(f.events.count==before)
     f.failReads=true;store.refresh();spin { !store.busy }
     precondition(store.ddcValues["luminance"]==79 && store.displayedDDC("luminance")==79)
-    precondition(store.noteDDC("luminance")=="上次确认")
+    precondition(store.noteDDC("luminance")==tr("上次确认"))
     store.setDDC("luminance",78);spin { !store.busy }
-    precondition(store.ddcValues["luminance"]==79 && store.displayedDDC("luminance")==78 && store.noteDDC("luminance")=="待确认")
+    precondition(store.ddcValues["luminance"]==79 && store.displayedDDC("luminance")==78 && store.noteDDC("luminance")==tr("待确认"))
     spin { FileManager.default.fileExists(atPath:cache.path) }
     let restored=DisplayStore(ddc:d,cacheURL:cache)
     precondition(restored.channel == .ddc && restored.ddcValues["luminance"]==79 && restored.ddcDrafts.isEmpty)

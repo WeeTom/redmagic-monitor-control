@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "REDMAGIC Monitor";
+"CFBundleName" = "REDMAGIC Monitor";
+"NSBluetoothAlwaysUsageDescription" = "Verbindet sich per Bluetooth mit deinem REDMAGIC-Monitor, um Eingänge zu wechseln, den Status zu lesen und verfügbare Bild- und Lichteinstellungen anzupassen.";
+"NSBluetoothPeripheralUsageDescription" = "Verbindet sich mit dem REDMAGIC-Monitor, um den Eingang und weitere unterstützte Einstellungen zu steuern.";

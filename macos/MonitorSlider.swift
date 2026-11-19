@@ -54,7 +54,7 @@ final class MonitorSliderView: NSView, NSAccessibilitySlider {
     override var acceptsFirstResponder: Bool { enabled }
     override func accessibilityValue() -> Any? { draft ?? value }
     override func accessibilityValueDescription() -> String? {
-        (draft ?? value).map(String.init) ?? "尚未读取"
+        (draft ?? value).map(String.init) ?? tr("尚未读取")
     }
     override func isAccessibilityEnabled() -> Bool { enabled }
     override var focusRingMaskBounds: NSRect { bounds }

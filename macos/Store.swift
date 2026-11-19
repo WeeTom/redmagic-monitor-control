@@ -39,8 +39,8 @@ final class DisplayStore:ObservableObject {
     @Published var ddcWriting=Set<String>()
     @Published var bleWriting=Set<Feature>()
     @Published var stale=Set<String>()
-    @Published var ddcStatus="尚未检测 DDC"
-    @Published var bluetoothStatus="蓝牙尚未连接"
+    @Published var ddcStatus=tr("尚未检测 DDC")
+    @Published var bluetoothStatus=tr("蓝牙尚未连接")
     @Published var bluetoothConnected=false
     var status:String { channel == .ddc ? ddcStatus : bluetoothStatus }
     @Published var message=""
@@ -84,7 +84,7 @@ final class DisplayStore:ObservableObject {
             guard let self else { return }
             self.bluetoothConnected = connected
             if !connected {
-                self.bluetoothStatus = "蓝牙已断开"
+                self.bluetoothStatus = tr("蓝牙已断开")
                 self.confirmedBLEThisRun.remove(.input)
                 if self.values[.input] != nil { self.stale.insert("b:\(Feature.input.rawValue)") }
             }
@@ -129,12 +129,12 @@ final class DisplayStore:ObservableObject {
         if demo {
             values=[.input:1,.mode:7,.hdr:2,.lightPower:1,.lightColor:7,.lightLevel:1,.lightEffect:2]
             ddcValues=["input":7,"luminance":81,"contrast":50,"volume":0]
-            ddcStatus="DDC · Type-C";bluetoothStatus="蓝牙已连接 · Type-C";bluetoothConnected=true;lastRefresh=Date()
+            ddcStatus="DDC · Type-C";bluetoothStatus=tr("蓝牙已连接 · Type-C");bluetoothConnected=true;lastRefresh=Date()
         } else if loadCache,let url=self.cacheURL,let data=try? Data(contentsOf:url),let c=try? JSONDecoder().decode(DeviceCache.self,from:data),c.serial==MonitorIdentity.cacheKey {
             ddcValues=c.ddc.filter { Self.ddcFeatures.contains($0.key) && (0...100).contains($0.value) }
             for (k,v) in c.ble { if let id=Int32(k),let f=Feature(rawValue:id),f != .volume,gm_value_valid(f.rawValue,Int32(v),0) != 0 { values[f]=v } }
             dates=c.dates;stale=Set(ddcValues.keys.map { "d:"+$0 }+values.keys.map { "b:\($0.rawValue)" })
-            if !ddcValues.isEmpty { ddcStatus="DDC · 上次确认的状态" }
+            if !ddcValues.isEmpty { ddcStatus=tr("DDC · 上次确认的状态") }
         }
     }
     private static func initialChannel(defaults: UserDefaults, previousStatus: URL) -> ControlChannel {
@@ -152,14 +152,14 @@ final class DisplayStore:ObservableObject {
     func displayedDDC(_ key:String)->Int? { ddcDrafts[key] ?? ddcValues[key] }
     func displayedBLE(_ feature:Feature)->Int? { bleDrafts[feature] ?? values[feature] }
     func noteDDC(_ key:String)->String {
-        if ddcWriting.contains(key) { return "正在确认" }
-        if ddcDrafts[key] != nil { return "待确认" }
-        return stale.contains("d:"+key) ? "上次确认":""
+        if ddcWriting.contains(key) { return tr("正在确认") }
+        if ddcDrafts[key] != nil { return tr("待确认") }
+        return stale.contains("d:"+key) ? tr("上次确认"):""
     }
     func noteBLE(_ f:Feature)->String {
-        if bleWriting.contains(f) { return "正在确认" }
-        if bleDrafts[f] != nil { return "待确认" }
-        return stale.contains("b:\(f.rawValue)") ? "上次确认":""
+        if bleWriting.contains(f) { return tr("正在确认") }
+        if bleDrafts[f] != nil { return tr("待确认") }
+        return stale.contains("b:\(f.rawValue)") ? tr("上次确认"):""
     }
     private func persist() {
         guard !demo,let cacheURL else { return }
@@ -173,7 +173,7 @@ final class DisplayStore:ObservableObject {
     private func changed() {
         guard !demo,reportStatus else { return }
         statusSave?.cancel()
-        let state:[String:Any] = ["channel":channel.preferenceName,"status":status,"message":message,"pendingBLE":pendingBLE,"ddcBusy":ddcBusy,"ddcValues":ddcValues,"ddcDrafts":ddcDrafts,"stale":Array(stale),"bluetoothValues":Dictionary(uniqueKeysWithValues:values.map { ($0.key.title,$0.value) }),"bluetoothConnected":bluetoothConnected,"bluetoothIdleDisconnectSeconds":300,"volumeMaximum":100,"volumeTransport":"DDC factory C8","channelSelectionPolicy":"read missing values; reconnect Bluetooth on entry when disconnected","bluetoothControllerCreated":bluetoothCreated,"automaticRefreshWritesSettings":false]
+        let state:[String:Any] = ["channel":channel.preferenceName,"status":status,"message":message,"pendingBLE":pendingBLE,"ddcBusy":ddcBusy,"ddcValues":ddcValues,"ddcDrafts":ddcDrafts,"stale":Array(stale),"bluetoothValues":Dictionary(uniqueKeysWithValues:values.map { ($0.key.titleKey,$0.value) }),"bluetoothConnected":bluetoothConnected,"bluetoothIdleDisconnectSeconds":300,"volumeMaximum":100,"volumeTransport":"DDC factory C8","channelSelectionPolicy":"read missing values; reconnect Bluetooth on entry when disconnected","bluetoothControllerCreated":bluetoothCreated,"automaticRefreshWritesSettings":false]
         let url=statusURL
         let job=DispatchWorkItem { if let data=try? JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys]) { try? data.write(to:url,options:.atomic) } }
         statusSave=job;persistence.asyncAfter(deadline:.now()+0.1,execute:job)
@@ -250,7 +250,7 @@ final class DisplayStore:ObservableObject {
     private func refreshDDC(_ features:[String]) {
         guard !demo else { return }
         guard injectedDDC != nil || !MonitorIdentity.serial.isEmpty else {
-            ddcStatus="请配置显示器 MonitorSerial 并重启应用"; changed(); return
+            ddcStatus=tr("请配置显示器 MonitorSerial 并重启应用"); changed(); return
         }
         for f in features where !ddcReading.contains(f) && !ddcWriting.contains(f) {
             if f == "input" {
@@ -268,7 +268,7 @@ final class DisplayStore:ObservableObject {
                         self.ddcValues[f]=v;self.ddcDrafts.removeValue(forKey:f);self.stale.remove("d:"+f);self.dates["d:"+f]=self.now();self.persist()
                     } else { self.stale.insert("d:"+f) }
                 }
-                if self.ddcReading.isEmpty { self.lastRefresh=Date();self.ddcStatus=self.ddcValues.isEmpty ? "DDC 暂不可用 · 可刷新重试":"DDC · 已保留最近状态" }
+                if self.ddcReading.isEmpty { self.lastRefresh=Date();self.ddcStatus=self.ddcValues.isEmpty ? tr("DDC 暂不可用 · 可刷新重试"):tr("DDC · 已保留最近状态") }
                 self.changed();self.finishRefresh()
             }
         }
@@ -280,7 +280,7 @@ final class DisplayStore:ObservableObject {
         if f == .input && value == nil && inputBusy { return }
         if demo { if let value { values[f]=value };completion?();changed();return }
         guard injectedBluetooth != nil || MonitorIdentity.address != nil else {
-            bluetoothStatus="请配置显示器 BluetoothAddress 并重启应用"; changed(); return
+            bluetoothStatus=tr("请配置显示器 BluetoothAddress 并重启应用"); changed(); return
         }
         let generation:Int
         if let value {
@@ -304,7 +304,7 @@ final class DisplayStore:ObservableObject {
                     self.confirmedBLEThisRun.insert(f)
                     self.values[f]=actual;self.bleDrafts.removeValue(forKey:f);self.stale.remove("b:\(f.rawValue)");self.dates["b:\(f.rawValue)"]=self.now();self.persist()
                     if f == .input { self.lastInputRead[.bluetooth] = self.now() }
-                    if value != nil { self.message="\(f.title)已回读确认" }
+                    if value != nil { self.message=tr("%@已回读确认", f.title) }
                     completion?()
                 case .failure(let error):
                     self.stale.insert("b:\(f.rawValue)");self.message=error.localizedDescription;onFailure?(error)
@@ -313,7 +313,7 @@ final class DisplayStore:ObservableObject {
             if self.pendingBLE == 0 {
                 self.lastRefresh = Date()
                 if self.bluetoothConnected {
-                    self.bluetoothStatus = "蓝牙已连接"
+                    self.bluetoothStatus = tr("蓝牙已连接")
                 }
             }
             self.changed();self.finishRefresh()
@@ -358,7 +358,7 @@ final class DisplayStore:ObservableObject {
             }
             switch result {
             case .success:
-                self.message = "设置已回读确认"
+                self.message = tr("设置已回读确认")
             case .failure(DDCOperationError.superseded): break
             case .failure(let error): self.message = error.localizedDescription
             }
@@ -369,21 +369,21 @@ final class DisplayStore:ObservableObject {
         guard let port = MonitorInput.ports.first(where: { $0.ddc == value }) else { return }
         let ddcReport: String
         switch result {
-        case .success: ddcReport = "DDC 已确认 \(port.name)"
-        case .failure(DDCOperationError.unconfirmed): ddcReport = "DDC 已发送，活动输入尚未确认"
+        case .success: ddcReport = tr("DDC 已确认 %@", port.name)
+        case .failure(DDCOperationError.unconfirmed): ddcReport = tr("DDC 已发送，活动输入尚未确认")
         case .failure(DDCOperationError.superseded): return
         case .failure(let error): message = error.localizedDescription; return
         }
         guard !demo, bluetoothConnected || canSyncMenu() else {
-            message = "\(ddcReport)。可在蓝牙页选择 \(port.name) 同步显示器菜单"
+            message = tr("%@。可在蓝牙页选择 %@ 同步显示器菜单", ddcReport, port.name)
             return
         }
-        message = "\(ddcReport)，正在同步显示器菜单"
+        message = tr("%@，正在同步显示器菜单", ddcReport)
         request(.input, value: port.bluetooth, reapply: true, onFailure: { [weak self] _ in
-            self?.message = "\(ddcReport)。蓝牙未能确认菜单设置，请在蓝牙页重试"
+            self?.message = tr("%@。蓝牙未能确认菜单设置，请在蓝牙页重试", ddcReport)
         }) { [weak self] in
             guard let self else { return }
-            self.message = "\(ddcReport)，蓝牙已确认菜单为 \(port.name)"
+            self.message = tr("%@，蓝牙已确认菜单为 %@", ddcReport, port.name)
             if self.channel == .bluetooth { self.readMissingBluetoothFeatures() }
         }
     }
@@ -391,8 +391,8 @@ final class DisplayStore:ObservableObject {
     func resetDefaults() {
         guard !isResettingDefaults else { return }
         isResettingDefaults = true
-        message = "正在恢复亮度和对比度…"
-        let defaults = [("luminance", "亮度"), ("contrast", "对比度")]
+        message = tr("正在恢复亮度和对比度…")
+        let defaults = [("luminance", tr("亮度")), ("contrast", tr("对比度"))]
         var remaining = defaults.count
         var confirmed = [String]()
         var unconfirmed = [String]()
@@ -407,10 +407,12 @@ final class DisplayStore:ObservableObject {
                 guard remaining == 0 else { return }
                 self.isResettingDefaults = false
                 if unconfirmed.isEmpty {
-                    self.message = "亮度和对比度均已恢复到 50"
+                    self.message = tr("亮度和对比度均已恢复到 50")
                 } else {
-                    let applied = confirmed.isEmpty ? "" : confirmed.joined(separator: "、") + "已恢复到 50。"
-                    self.message = applied + unconfirmed.joined(separator: "、") + "未确认恢复，请刷新检查"
+                    let appliedNames = ListFormatter.localizedString(byJoining: confirmed)
+                    let pendingNames = ListFormatter.localizedString(byJoining: unconfirmed)
+                    let applied = confirmed.isEmpty ? "" : tr("%@已恢复到 50。", appliedNames)
+                    self.message = [applied, tr("%@未确认恢复，请刷新检查", pendingNames)].filter { !$0.isEmpty }.joined(separator: " ")
                 }
             }
         }
@@ -427,7 +429,7 @@ final class DisplayStore:ObservableObject {
     private func writeDDC(_ feature: String, value: Int, completion: @escaping DDCController.Completion) {
         if demo { ddcValues[feature] = value; completion(.success(value)); changed(); return }
         guard injectedDDC != nil || !MonitorIdentity.serial.isEmpty else {
-            completion(.failure(DisplayError("请配置显示器 MonitorSerial 并重启应用"))); return
+            completion(.failure(DisplayError(tr("请配置显示器 MonitorSerial 并重启应用")))); return
         }
         ddcGeneration[feature, default: 0] += 1
         let generation = ddcGeneration[feature]
@@ -469,8 +471,8 @@ final class DisplayStore:ObservableObject {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             loginEnabled=SMAppService.mainApp.status == .enabled
-            if enabled && !loginEnabled { message="请在系统设置的登录项中允许本应用" }
-        } catch { message="登录项设置失败：\(error.localizedDescription)" }
+            if enabled && !loginEnabled { message=tr("请在系统设置的登录项中允许本应用") }
+        } catch { message=tr("登录项设置失败：%@", error.localizedDescription) }
     }
     func stop() {
         inputIntent += 1

@@ -11,7 +11,7 @@ struct SettingDropdown: NSViewRepresentable {
     final class Coordinator: NSObject {
         var choices: [(Int, String)] = []
         var onSelect: (Int) -> Void
-        let placeholder = NSMenuItem(title: "选择设置", action: nil, keyEquivalent: "")
+        let placeholder = NSMenuItem(title: tr("选择设置"), action: nil, keyEquivalent: "")
 
         init(onSelect: @escaping (Int) -> Void) {
             self.onSelect = onSelect

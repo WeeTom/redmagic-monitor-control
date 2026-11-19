@@ -2,6 +2,12 @@
 """Build an Apple Silicon macOS 14+ menu-bar application, without installing it."""
 from pathlib import Path
 import subprocess,shutil,plistlib,json,hashlib
+import argparse
+import tempfile
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--dmg', action='store_true', help='also create a drag-to-install macOS disk image')
+options = parser.parse_args()
 
 ROOT=Path(__file__).resolve().parent
 BUILD=ROOT/'build';BUILD.mkdir(exist_ok=True)
@@ -29,11 +35,12 @@ run(*swift_compiler,*sorted((ROOT/'macos').glob('*.swift')),*ddc_link,
 shutil.copy2(ROOT/'LICENSE',APP/'Contents/Resources/LICENSE.txt')
 shutil.copy2(ROOT/'third_party/m1ddc/LICENSE',APP/'Contents/Resources/m1ddc-LICENSE.txt')
 shutil.copytree(ROOT/'assets/donation/qr', APP/'Contents/Resources/Donation')
+shutil.copytree(ROOT/'macos/Localizations', APP/'Contents/Resources', dirs_exist_ok=True)
 run('swiftc',ROOT/'assets/Icon.swift','-o',BUILD/'IconBuilder')
 run(BUILD/'IconBuilder',BUILD/'AppIcon.iconset')
 run('iconutil','-c','icns',BUILD/'AppIcon.iconset','-o',APP/'Contents/Resources/AppIcon.icns')
 info={'CFBundleName':'红魔显示器','CFBundleDisplayName':'红魔显示器','CFBundleIdentifier':'com.local.redmagic-display',
-      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.5.7','CFBundleVersion':'15',
+      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'1.0.0','CFBundleVersion':'16','CFBundleDevelopmentRegion':'en',
       'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True,'NSPrincipalClass':'NSApplication','CFBundleIconFile':'AppIcon',
       'NSBluetoothAlwaysUsageDescription':'通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。',
       'NSBluetoothPeripheralUsageDescription':'连接红魔显示器并控制输入源及已支持的设置。'}
@@ -49,3 +56,18 @@ manifest={'version':info['CFBundleShortVersionString'],'platform':'Apple Silicon
           'bluetooth_idle_disconnect_seconds':300,'statusbar_icon_only':True}
 (BUILD/'build-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
 print(str(APP))
+if options.dmg:
+    version = info['CFBundleShortVersionString']
+    image = BUILD/f'RedMagicMonitor-{version}-macOS-arm64.dmg'
+    with tempfile.TemporaryDirectory(dir=BUILD) as staging:
+        stage = Path(staging)
+        contents = stage/'disk'
+        contents.mkdir()
+        run('ditto', APP, contents/APP.name)
+        (contents/'Applications').symlink_to('/Applications')
+        candidate = stage/image.name
+        run('hdiutil', 'create', '-volname', f'REDMAGIC Monitor {version}', '-srcfolder', contents,
+            '-fs', 'HFS+', '-format', 'UDZO', candidate)
+        run('hdiutil', 'verify', candidate)
+        candidate.replace(image)
+    print(image)

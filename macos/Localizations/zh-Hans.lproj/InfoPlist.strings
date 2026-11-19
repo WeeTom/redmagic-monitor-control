@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "红魔显示器";
+"CFBundleName" = "红魔显示器";
+"NSBluetoothAlwaysUsageDescription" = "通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。";
+"NSBluetoothPeripheralUsageDescription" = "连接红魔显示器并控制输入源及已支持的设置。";

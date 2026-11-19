@@ -38,8 +38,8 @@ struct ShortcutSwitch {
     private func fallback(ddcSent: Bool) {
         guard submitBLE != nil else {
             finish(ddcSent
-                ? .unconfirmed("DDC 已发送切换命令，显示器未确认回读。")
-                : .failed("无法通过 DDC 连接目标显示器。此快捷方式未绑定蓝牙地址。"))
+                ? .unconfirmed(tr("DDC 已发送切换命令，显示器未确认回读。"))
+                : .failed(tr("无法通过 DDC 连接目标显示器。此快捷方式未绑定蓝牙地址。")))
             return
         }
         if ddcSent { verifyExisting(matches: 0) }
@@ -53,7 +53,7 @@ struct ShortcutSwitch {
             case .success(let value) where value != input.bluetooth:
                 setBluetooth(ddcSent: true)
             case .success where matches == 1:
-                finish(.confirmed("蓝牙菜单（活动画面未独立验证）"))
+                finish(.confirmed(tr("蓝牙菜单（活动画面未独立验证）")))
             case .success:
                 verifyExisting(matches: 1)
             case .failure(let error):
@@ -68,9 +68,9 @@ struct ShortcutSwitch {
             guard current() else { return }
             switch result {
             case .success(let value) where value == input.bluetooth:
-                finish(.confirmed("蓝牙"))
+                finish(.confirmed(tr("蓝牙")))
             case .success:
-                finish(.unconfirmed("蓝牙回读与目标输入源不符，请检查实际画面。"))
+                finish(.unconfirmed(tr("蓝牙回读与目标输入源不符，请检查实际画面。")))
             case .failure(let error):
                 failBluetooth(error, ddcSent: ddcSent)
             }
@@ -80,9 +80,9 @@ struct ShortcutSwitch {
     private func failBluetooth(_ error: Error, ddcSent: Bool) {
         let detail = error.localizedDescription
         if ddcSent || bleHasSent() {
-            finish(.unconfirmed("切换命令已发送。蓝牙未能确认目标输入源。\(detail)"))
+            finish(.unconfirmed(tr("切换命令已发送。蓝牙未能确认目标输入源。%@", detail)))
         } else {
-            finish(.failed("无法通过蓝牙切换。\(detail)"))
+            finish(.failed(tr("无法通过蓝牙切换。%@", detail)))
         }
     }
 }

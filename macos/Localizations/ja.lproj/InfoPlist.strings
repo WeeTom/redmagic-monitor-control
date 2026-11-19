@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "REDMAGIC モニター";
+"CFBundleName" = "REDMAGIC モニター";
+"NSBluetoothAlwaysUsageDescription" = "Bluetooth で REDMAGIC モニターに接続し、入力の切り替え、状態の取得、対応する映像と照明の設定を行います。";
+"NSBluetoothPeripheralUsageDescription" = "REDMAGIC モニターに接続し、入力とその他の対応設定を制御します。";

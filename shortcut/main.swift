@@ -19,7 +19,7 @@ func report(_ title: String, _ message: String, status: Int32) -> Never {
 }
 
 guard arguments.isEmpty || diagnose else {
-    FileHandle.standardError.write(Data("用法：InputShortcutRunner [--diagnose]\n".utf8))
+    FileHandle.standardError.write(Data((tr("用法：InputShortcutRunner [--diagnose]") + "\n").utf8))
     exit(64)
 }
 
@@ -31,7 +31,7 @@ guard let value = info["GMInputSource"] as? Int,
       let input = MonitorInput.ports.first(where: { $0.ddc == value }),
       !serial.utf8.contains(0), !serial.isEmpty || address != nil,
       rawAddress == nil || address != nil else {
-    report("快捷方式配置无效", "请在红魔显示器中为目标显示器重新导出快捷方式。", status: 1)
+    report(tr("快捷方式配置无效"), tr("请在红魔显示器中为目标显示器重新导出快捷方式。"), status: 1)
 }
 if diagnose {
     print("\(input.name) (DDC \(input.ddc)); DDC=\(serial.isEmpty ? "no" : "yes"), Bluetooth=\(address == nil ? "no" : "yes")")
@@ -72,7 +72,7 @@ final class ShortcutDelegate: NSObject, NSApplicationDelegate {
     private func switchInput() {
         request += 1
         do { try lease.claim() }
-        catch { finish(.failed("无法记录快捷方式请求。\(error.localizedDescription)")) }
+        catch { finish(.failed(tr("无法记录快捷方式请求。%@", error.localizedDescription))) }
         bluetooth?.stop()
         bluetooth = nil
         waiting = true
@@ -88,10 +88,10 @@ final class ShortcutDelegate: NSObject, NSApplicationDelegate {
         guard waiting else { return }
         do {
             guard try lease.acquire() else {
-                if ProcessInfo.processInfo.systemUptime >= waitDeadline { finish(.failed("另一项切换尚未结束，请稍后重试。")) }
+                if ProcessInfo.processInfo.systemUptime >= waitDeadline { finish(.failed(tr("另一项切换尚未结束，请稍后重试。"))) }
                 return
             }
-        } catch { finish(.failed("无法取得目标显示器的快捷方式锁。\(error.localizedDescription)")) }
+        } catch { finish(.failed(tr("无法取得目标显示器的快捷方式锁。%@", error.localizedDescription))) }
         waiting = false
         let current = request
         let wake = Process()
@@ -120,10 +120,10 @@ final class ShortcutDelegate: NSObject, NSApplicationDelegate {
             exit(0)
         case .unconfirmed(let detail):
             log.record("shortcut_sent_unconfirmed", ["source": input.name, "message": detail])
-            report("切换到 \(input.name) 尚未确认", detail, status: 2)
+            report(tr("切换到 %@ 尚未确认", input.name), detail, status: 2)
         case .failed(let detail):
             log.record("shortcut_failed", ["source": input.name, "message": detail])
-            report("切换到 \(input.name) 失败", detail, status: 1)
+            report(tr("切换到 %@ 失败", input.name), detail, status: 1)
         }
     }
 }

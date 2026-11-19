@@ -17,10 +17,12 @@ private struct DonationMethod: Identifiable {
             .flatMap { NSImage(contentsOf: $0) }
     }
 
+    private static let yuanAmount = 6.66.formatted(.currency(code: "CNY"))
+
     static let all = [
         DonationMethod("venmo", name: "Venmo", detail: "@weetom", tint: Color(red: 0.14, green: 0.49, blue: 0.72)),
-        DonationMethod("alipay", name: "支付宝", detail: "¥6.66", tint: Color(red: 0.09, green: 0.47, blue: 1)),
-        DonationMethod("wechat-pay", name: "微信支付", detail: "¥6.66", tint: Color(red: 0.02, green: 0.68, blue: 0.41))
+        DonationMethod("alipay", name: tr("支付宝"), detail: yuanAmount, tint: Color(red: 0.09, green: 0.47, blue: 1)),
+        DonationMethod("wechat-pay", name: tr("微信支付"), detail: yuanAmount, tint: Color(red: 0.02, green: 0.68, blue: 0.41))
     ]
 }
 
@@ -39,8 +41,8 @@ struct DonationView: View {
                 }
             }
             .buttonStyle(.bordered)
-            .help("在浏览器中查看项目源码")
-            .accessibilityLabel("在 GitHub 查看源码")
+            .help(tr("在浏览器中查看项目源码"))
+            .accessibilityLabel(tr("在 GitHub 查看源码"))
             .padding(.bottom, padding)
         }
     }
@@ -74,13 +76,13 @@ struct DonationView: View {
                         if let code = method.code {
                             Image(nsImage: code).resizable().scaledToFit()
                         } else {
-                            Text("二维码暂不可用").foregroundStyle(.black)
+                            Text(tr("二维码暂不可用")).foregroundStyle(.black)
                         }
                     }
                     .frame(width: side, height: side)
                     .background(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .accessibilityLabel(method.name + "收款二维码")
+                    .accessibilityLabel(tr("%@收款二维码", method.name))
                 }
                 .padding(padding)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
