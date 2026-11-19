@@ -25,7 +25,14 @@
   defaults write com.local.redmagic-display BluetoothAddress -string 'AA:BB:CC:DD:EE:FF'
   ```
 
-- **Windows**　在 `%LOCALAPPDATA%\RedMagicMonitor\settings.json` 中填写显示器的 `MonitorSerial`（EDID 序列号）和需要使用的 `BluetoothAddress`，再退出并重新运行 EXE。仅用 DDC 且系统中只有一台 EDID 有效的 GM001J 时，可以直接使用。配置示例见 Windows 说明。[Windows 本机配置](windows/README.md#本机配置)
+- **Windows**　在 `%LOCALAPPDATA%\RedMagicMonitor\settings.json` 中填写显示器的 `MonitorSerial`（EDID 序列号）和需要使用的 `BluetoothAddress`，再退出并重新运行 EXE。仅用 DDC 且系统中只有一台 EDID 有效的 GM001J 时，可以直接使用。如果文件尚不存在，可在该位置新建。把示例值换成实际值，省略不用的通道。[Windows 本机配置](windows/README.md#本机配置)
+
+  ```json
+  {
+    "MonitorSerial": "YOUR_EDID_SERIAL",
+    "BluetoothAddress": "AA:BB:CC:DD:EE:FF"
+  }
+  ```
 
 ## 赞助 · Donation
 

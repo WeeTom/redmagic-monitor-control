@@ -25,7 +25,14 @@ Version 1.0.0 of the macOS and Windows apps follows the system language. Both su
   defaults write com.local.redmagic-display BluetoothAddress -string 'AA:BB:CC:DD:EE:FF'
   ```
 
-- **Windows.** Set `MonitorSerial` (the monitor’s EDID serial number) and, if needed, `BluetoothAddress` in `%LOCALAPPDATA%\RedMagicMonitor\settings.json`. Then quit and relaunch the EXE. If you use only DDC and exactly one GM001J with a valid EDID is present, you can use it immediately. The Windows guide includes an example configuration. [Windows local configuration (Chinese)](windows/README.md#本机配置)
+- **Windows.** Set `MonitorSerial` (the monitor’s EDID serial number) and, if needed, `BluetoothAddress` in `%LOCALAPPDATA%\RedMagicMonitor\settings.json`. Then quit and relaunch the EXE. If you use only DDC and exactly one GM001J with a valid EDID is present, you can use it immediately. If the file does not exist yet, create it at that path. Replace the example values and omit any connection you do not use. [Windows local configuration (Chinese)](windows/README.md#本机配置)
+
+  ```json
+  {
+    "MonitorSerial": "YOUR_EDID_SERIAL",
+    "BluetoothAddress": "AA:BB:CC:DD:EE:FF"
+  }
+  ```
 
 ## Donations
 
