@@ -82,6 +82,13 @@ swiftc macos/Features.swift macos/InputShortcutExporter.swift tests/input_shortc
 
 可用 `--preview /absolute/path.png` 渲染演示界面，加 `--preview-bluetooth` 可预览蓝牙页。退出常驻应用后，`--probe` 会读取 DDC 状态，`--probe-keepalive` 检查两轮蓝牙查询是否复用同一连接。日志保存在 `~/Library/Logs/RedMagicDisplay/`。
 
+## 赞助 · Donation
+
+如果这个工具帮到了你，欢迎通过支付宝、微信支付或 Venmo 扫码支持项目的开发和维护。点击图片可查看原图。
+
+<a href="assets/donation/china-pay.jpg"><img src="assets/donation/china-pay.jpg" alt="支付宝（左）和微信支付（右）赞助收款码" width="440"></a>
+<a href="assets/donation/venmo.png"><img src="assets/donation/venmo.png" alt="Venmo 赞助收款码，账号 @weetom" width="280"></a>
+
 ## 许可证
 
 项目采用 MIT 许可证。Apple Silicon DDC 传输使用 waydabber 的 m1ddc，保留了上游版权声明和本地修改记录。[项目许可证](LICENSE) · [m1ddc 许可证](third_party/m1ddc/LICENSE) · [m1ddc 修改说明](third_party/m1ddc/LOCAL-CHANGES.txt)
