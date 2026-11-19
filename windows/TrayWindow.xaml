@@ -17,6 +17,44 @@
     <SolidColorBrush x:Key="AccentSurfaceBrush" Color="#532631"/>
     <SolidColorBrush x:Key="TrackBrush" Color="#534956"/>
 
+    <Style x:Key="ExportMenu" TargetType="ContextMenu">
+      <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}"/>
+      <Setter Property="MinWidth" Value="{Binding PlacementTarget.ActualWidth, RelativeSource={RelativeSource Self}}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ContextMenu">
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="6" Padding="3">
+              <ItemsPresenter/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                  <Border x:Name="Row" Background="Transparent" Padding="8,4" CornerRadius="3">
+                    <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsHighlighted" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style x:Key="UiButton" TargetType="Button">
       <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}"/>

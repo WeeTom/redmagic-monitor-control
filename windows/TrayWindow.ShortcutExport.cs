@@ -14,14 +14,15 @@ public partial class TrayWindow
         var button = (Button)sender;
         if (button.ContextMenu is null)
         {
-            var menu = new ContextMenu { Placement = PlacementMode.Bottom, PlacementTarget = button };
-            menu.SetResourceReference(BackgroundProperty, "CardBrush");
-            menu.SetResourceReference(ForegroundProperty, "TextBrush");
-            menu.SetResourceReference(BorderBrushProperty, "StrokeBrush");
+            var menu = new ContextMenu
+            {
+                Style = (Style)FindResource("ExportMenu"),
+                Placement = PlacementMode.Bottom,
+                PlacementTarget = button
+            };
             foreach (var source in InputSources.All)
             {
                 var item = new MenuItem { Header = InputSources.Name(source) };
-                item.SetResourceReference(ForegroundProperty, "TextBrush");
                 item.Click += (_, _) => ExportShortcut(source);
                 menu.Items.Add(item);
             }
