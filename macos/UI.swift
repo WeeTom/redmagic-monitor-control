@@ -208,7 +208,7 @@ struct ControlPanel: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("选择目标接口，导出可独立运行的 DDC 切源应用")
+            .help("选择目标接口，导出独立运行的切源应用")
         }) {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())], spacing: 6) {
                 ForEach(isDDC ? DDCController.inputChoices : Feature.input.choices, id: \.0) { value, title in
@@ -259,13 +259,18 @@ struct ControlPanel: View {
     private func exportShortcut(for port: MonitorInput) {
         Task { @MainActor in
             let serial = MonitorIdentity.serial
+            let address = MonitorIdentity.address
             do {
-                guard !serial.isEmpty else {
-                    throw DisplayError("请先绑定显示器的 DDC 序列号（MonitorSerial），然后重新打开红魔显示器。")
+                guard !serial.isEmpty || address != nil else {
+                    throw DisplayError("请先绑定显示器的 DDC 序列号或蓝牙地址，然后重新打开红魔显示器。")
                 }
                 let panel = NSSavePanel()
                 panel.title = "导出快捷方式应用"
-                panel.message = "打开此应用会通过 DDC 将显示器切换到 \(port.name)。"
+                let route: String
+                if serial.isEmpty { route = "通过蓝牙切源。" }
+                else if address == nil { route = "通过 DDC 切源。配置显示器蓝牙地址后可导出支持自动回退的版本。" }
+                else { route = "优先使用 DDC，必要时自动尝试蓝牙。" }
+                panel.message = "目标接口为 \(port.name)。" + route
                 panel.prompt = "导出"
                 panel.allowedContentTypes = [.applicationBundle]
                 panel.canCreateDirectories = true
@@ -275,7 +280,7 @@ struct ControlPanel: View {
                 guard await panel.begin() == .OK, let destination = panel.url else { return }
                 let replaceExisting = FileManager.default.fileExists(atPath: destination.path)
                 try await Task.detached(priority: .userInitiated) {
-                    try InputShortcutExporter.export(port: port, serial: serial, to: destination,
+                    try InputShortcutExporter.export(port: port, serial: serial, bluetoothAddress: address, to: destination,
                                                      replaceExisting: replaceExisting)
                 }.value
                 NSWorkspace.shared.activateFileViewerSelecting([destination])

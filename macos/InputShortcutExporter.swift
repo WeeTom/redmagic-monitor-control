@@ -5,11 +5,15 @@ enum InputShortcutExporter {
     private static let runner = "InputShortcutRunner"
     private static let identifierPrefix = "com.local.redmagic-display.shortcut."
 
-    static func export(port: MonitorInput, serial: String, to destination: URL,
+    static func export(port: MonitorInput, serial: String, bluetoothAddress: Data? = nil, to destination: URL,
                        replaceExisting: Bool = false, sourceBundle: URL = Bundle.main.bundleURL) throws {
         let serial = serial.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !serial.isEmpty, !serial.utf8.contains(0) else {
-            throw DisplayError("请先绑定有效的显示器 DDC 序列号，再导出快捷方式。")
+        guard !serial.utf8.contains(0) else { throw DisplayError("显示器 DDC 序列号无效。") }
+        if let bluetoothAddress, bluetoothAddress.count != 6 {
+            throw DisplayError("显示器蓝牙地址无效。")
+        }
+        guard !serial.isEmpty || bluetoothAddress != nil else {
+            throw DisplayError("请先绑定显示器的 DDC 序列号或蓝牙地址，再导出快捷方式。")
         }
         guard MonitorInput.ports.contains(where: { $0.ddc == port.ddc }),
               destination.isFileURL, destination.pathExtension.lowercased() == "app" else {
@@ -57,13 +61,19 @@ enum InputShortcutExporter {
                                  to: resources.appendingPathComponent(name))
         }
         let name = target.deletingPathExtension().lastPathComponent
-        let info: [String: Any] = [
+        var info: [String: Any] = [
             "CFBundlePackageType": "APPL", "CFBundleName": name, "CFBundleDisplayName": name,
             "CFBundleIdentifier": identifier, "CFBundleExecutable": runner, "CFBundleIconFile": "AppIcon",
-            "CFBundleShortVersionString": "1.0", "CFBundleVersion": "1", "LSUIElement": true,
+            "CFBundleShortVersionString": "1.1", "CFBundleVersion": "2", "LSUIElement": true,
             "LSMinimumSystemVersion": "14.0", "NSHighResolutionCapable": true,
             "GMShortcutFormat": 1, "GMInputSource": port.ddc, "GMMonitorSerial": serial
         ]
+        if let bluetoothAddress {
+            info["GMBluetoothAddress"] = bluetoothAddress.map { String(format: "%02X", $0) }.joined(separator: ":")
+            let reason = "通过蓝牙连接已绑定的红魔显示器，将其切换到所选输入源。"
+            info["NSBluetoothAlwaysUsageDescription"] = reason
+            info["NSBluetoothPeripheralUsageDescription"] = reason
+        }
         let plist = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try plist.write(to: contents.appendingPathComponent("Info.plist"))
         try codesign(["--force", "--sign", "-", candidate.path])

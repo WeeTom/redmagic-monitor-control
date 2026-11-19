@@ -36,6 +36,9 @@ struct InputShortcutExportChecks {
             let plist = try info(destination)
             precondition(plist["GMInputSource"] as? Int == port.ddc)
             precondition(plist["GMMonitorSerial"] as? String == "Test EDID")
+            precondition(plist["GMBluetoothAddress"] == nil)
+            precondition(plist["NSBluetoothAlwaysUsageDescription"] == nil)
+            precondition(plist["NSBluetoothPeripheralUsageDescription"] == nil)
             precondition(plist["LSUIElement"] as? Bool == true)
             precondition(plist["CFBundleName"] as? String == destination.deletingPathExtension().lastPathComponent)
             let current = plist["CFBundleIdentifier"] as! String
@@ -50,14 +53,27 @@ struct InputShortcutExportChecks {
             precondition(process.terminationStatus == 0)
         }
         let dp = MonitorInput.ports.first { $0.name == "DP" }!
-        func export(_ url: URL, replacing: Bool = true, serial: String = "Test EDID") throws {
-            try InputShortcutExporter.export(port: dp, serial: serial, to: url,
+        func export(_ url: URL, replacing: Bool = true, serial: String = "Test EDID", address: Data? = nil) throws {
+            try InputShortcutExporter.export(port: dp, serial: serial, bluetoothAddress: address, to: url,
                                              replaceExisting: replacing, sourceBundle: source)
+        }
+        let address = Data([0x0A, 0xB2, 0x3C, 0x04, 0x5E, 0x6F])
+        for serial in ["Test EDID", ""] {
+            try export(destination, serial: serial, address: address)
+            let plist = try info(destination)
+            precondition(plist["GMMonitorSerial"] as? String == serial)
+            precondition(plist["GMBluetoothAddress"] as? String == "0A:B2:3C:04:5E:6F")
+            precondition(!(plist["NSBluetoothAlwaysUsageDescription"] as? String ?? "").isEmpty)
+            precondition(!(plist["NSBluetoothPeripheralUsageDescription"] as? String ?? "").isEmpty)
+            precondition(plist["CFBundleIdentifier"] as? String == identifier)
         }
         refuses { try export(source) }
         refuses { try export(destination, replacing: false) }
         refuses { try export(destination, serial: " ") }
         refuses { try export(destination, serial: "invalid\0serial") }
+        refuses { try export(destination, serial: "invalid\0serial", address: address) }
+        refuses { try export(destination, serial: "", address: Data([0xAB])) }
+        refuses { try export(destination, address: Data(repeating: 0xAB, count: 7)) }
         let foreign = root.appendingPathComponent("切换到DP.app")
         try fm.createDirectory(at: foreign, withIntermediateDirectories: false)
         let marker = Data("untouched".utf8)
@@ -76,12 +92,13 @@ struct InputShortcutExportChecks {
         refuses { try export(destination) }
         let after = try info(destination)
         precondition(after["CFBundleIdentifier"] as? String == identifier)
-        precondition(after["GMInputSource"] as? Int == MonitorInput.ports.last!.ddc)
+        precondition(after["GMInputSource"] as? Int == dp.ddc)
+        precondition(after["GMBluetoothAddress"] as? String == "0A:B2:3C:04:5E:6F")
         let protectedData = try Data(contentsOf: foreign.appendingPathComponent("marker"))
         let protectedFile = try Data(contentsOf: unrelatedFile)
         precondition(protectedData == marker && protectedFile == marker)
         let remaining = try fm.contentsOfDirectory(atPath: root.path)
         precondition(!remaining.contains { $0.hasPrefix(".redmagic-export-") })
-        print("PASS: standalone signed bundles for four inputs, identity across replacement, protected files and failure recovery")
+        print("PASS: four inputs, DDC and Bluetooth bindings, privacy descriptions, identity across replacement, protected files and failure recovery")
     }
 }

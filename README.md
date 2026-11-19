@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.3 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.1 支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.4 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.2 支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -31,7 +31,9 @@ open "build/红魔显示器.app"
 
 在任一控制页的输入源区域点「导出快捷方式…」，选择 Type-C、DP、HDMI 1 或 HDMI 2，再选择保存位置。导出后，访达会选中新建的 `.app`。例如，在「快捷指令」中添加「打开 App」操作，选择「切换到DP.app」，运行这条指令即可切到 DP。
 
-每个快捷应用都内置 DDC 控制程序，绑定导出时的显示器序列号和所选接口。菜单栏应用退出后，依然可以双击或由其他应用启动它。与原版 DDC 快捷应用一样，画面切换后显示器菜单可能仍保留上一次的输入源。
+菜单栏应用完全退出后，快捷应用仍可独立使用 DDC 和蓝牙。已绑定两个通道时，快捷应用先尝试 DDC，切换并回读成功后直接退出。DDC 无法发送时，通过蓝牙核对显示器身份，重选目标接口。若 DDC 已发送但切屏后无法回读，先查询蓝牙菜单，只有菜单仍指向其他接口才补发。蓝牙回读反映显示器菜单中的选择。DDC 成功后，显示器菜单可能仍保留原来的值。
+
+导出时只绑定一个通道的快捷应用会使用该通道。首次需要蓝牙时，macOS 可能要求为该快捷应用授权。要给旧版 DDC 快捷应用增加蓝牙后备，在主应用配置好蓝牙地址后重新导出即可。
 
 ## 两种控制方式
 
@@ -43,7 +45,9 @@ open "build/红魔显示器.app"
 
 ## Windows 快速开始
 
-下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.1](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.1/RedMagicMonitor.exe)
+下载 Windows x64 单文件程序即可启动托盘。升级时先退出旧托盘，再用新版替换原位置的 EXE，已有的设备绑定会继续使用。[下载 Windows 0.5.2](https://github.com/WeeTom/redmagic-monitor-control/releases/download/windows-v0.5.2/RedMagicMonitor.exe)
+
+在任一控制页的输入源区域点击「导出快捷方式」，选择接口并保存 `.lnk`。打开它即可切源，托盘程序会按需启动。快捷方式指向导出时的 EXE，移动程序后可重新导出。
 
 如需自行构建，可下载并解压源码。[下载最新源码 ZIP](https://github.com/WeeTom/redmagic-monitor-control/archive/refs/heads/main.zip)
 

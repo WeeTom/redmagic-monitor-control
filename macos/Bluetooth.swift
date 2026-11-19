@@ -10,8 +10,9 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     }
     let service=CBUUID(string:"0000E0FF-3C17-D293-8E48-14FE2E4DA212")
     let identityService=CBUUID(string:"0000D0FF-3C17-D293-8E48-14FE2E4DA212")
-    private let expectedMAC = MonitorIdentity.address
-    private var peripheralKey: String { "verifiedPeripheral." + (MonitorIdentity.addressSuffix ?? "") }
+    private let expectedMAC: Data?
+    private let addressSuffix: String
+    private var peripheralKey: String { "verifiedPeripheral." + addressSuffix }
     let log:EventLog
     var onState:((String)->Void)?
     var onConnection:((Bool)->Void)?
@@ -29,6 +30,8 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     private var machine=GMState()
     private var decoder=GMDecoder()
     private var machineStarted=false
+    private lazy var transactionLock = expectedMAC.map { BluetoothTransactionLock(address: $0) }
+    private var lockWaitDeadline: TimeInterval?
     private var stage="idle"
     private var deadline:TimeInterval=0
     private var timer:Timer?
@@ -40,8 +43,11 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     var isBusy:Bool { active != nil || !pending.isEmpty }
     private var clock:TimeInterval { ProcessInfo.processInfo.systemUptime }
     private var ms:UInt64 { UInt64(clock*1000) }
-    init(log:EventLog) {
-        self.log=log;super.init()
+    init(log:EventLog,address:Data? = MonitorIdentity.address) {
+        self.log=log
+        expectedMAC=address
+        addressSuffix=address?.map { String(format:"%02X",$0) }.joined() ?? ""
+        super.init()
         central=CBCentralManager(delegate:self,queue:.main,options:[CBCentralManagerOptionShowPowerAlertKey:false])
         timer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in self?.tick() }
     }
@@ -72,16 +78,28 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     private func beginConnection() {
         guard active != nil else { return }
         if peripheral?.state == .disconnecting { stage="disconnecting";deadline=clock+5;return }
+        if CBManager.authorization == .denied || CBManager.authorization == .restricted {
+            failAll("请在系统设置 → 隐私与安全性 → 蓝牙中允许本应用");return
+        }
         guard central.state == .poweredOn else {
             stage="permission";deadline=clock+45
             if central.state == .poweredOff { failAll("Mac 蓝牙已关闭，请开启后刷新") }
+            else if central.state == .unsupported { failAll("当前 Mac 无法使用低功耗蓝牙") }
             else if central.state == .unauthorized && CBManager.authorization != .notDetermined { failAll("请在系统设置 → 隐私与安全性 → 蓝牙中允许本应用") }
             else { onState?("等待蓝牙授权…") }
             return
         }
         verified=false;tx=nil;rx=nil;identity=nil;gm_decoder_reset(&decoder)
-        let saved=UserDefaults.standard.string(forKey:peripheralKey).flatMap(UUID.init(uuidString:))
-        if let saved, let cached=central.retrievePeripherals(withIdentifiers:[saved]).first { connect(cached) }
+        // An already connected monitor may have stopped advertising. CoreBluetooth
+        // can vend it to another local client, then FFD2 must still match the address.
+        let savedText=UserDefaults.standard.string(forKey:peripheralKey)
+            ?? UserDefaults.standard.persistentDomain(forName:"com.local.redmagic-display")?[peripheralKey] as? String
+        let saved=savedText.flatMap(UUID.init(uuidString:))
+        let connected=central.retrieveConnectedPeripherals(withServices:[service]).first {
+            $0.identifier == saved || matchesName($0.name)
+        }
+        if let connected { connect(connected) }
+        else if let saved, let cached=central.retrievePeripherals(withIdentifiers:[saved]).first { connect(cached) }
         else { scan() }
     }
     private func scan() {
@@ -94,12 +112,35 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         central.connect(p,options:nil)
     }
     private func beginProtocol() {
-        guard let job=active,verified,stage=="ready" else { return }
-        if !machineStarted {
-            _=gm_init_feature(&machine,job.feature.rawValue,Int32(job.desired ?? -1),job.reapply ? 1:0,ms)
-            machineStarted=true
+        guard let job=active,verified,stage=="ready",clock>=readyAt,!machineStarted else { return }
+        guard let transactionLock else { failAll("蓝牙设备地址未配置"); return }
+        if let lockWaitDeadline, clock >= lockWaitDeadline {
+            failAll("显示器蓝牙正由其他操作使用，请稍后重试")
+            return
         }
+        do {
+            guard try transactionLock.tryAcquire() else {
+                if lockWaitDeadline == nil {
+                    lockWaitDeadline = clock + 30
+                    onState?("正在等候其他蓝牙操作完成…")
+                }
+                return
+            }
+        } catch {
+            failAll("无法取得显示器蓝牙操作锁，请检查当前用户的应用支持目录")
+            return
+        }
+        lockWaitDeadline = nil
+        gm_decoder_reset(&decoder)
+        _=gm_init_feature(&machine,job.feature.rawValue,Int32(job.desired ?? -1),job.reapply ? 1:0,ms)
+        machineStarted=true
         onState?(job.desired==nil ? "正在读取\(job.feature.title)…" : "正在设置\(job.feature.title)…")
+    }
+    private func releaseTransaction() {
+        machineStarted = false
+        lockWaitDeadline = nil
+        gm_decoder_reset(&decoder)
+        transactionLock?.release()
     }
     private func tick() {
         if stage=="ready",idlePolicy.shouldDisconnect(at:clock,isBusy:isBusy) {
@@ -107,8 +148,18 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
             onConnection?(false);onState?("空闲 5 分钟，蓝牙已断开")
             if let p=peripheral { central.cancelPeripheralConnection(p) }
         }
-        if active != nil,stage != "ready",deadline>0,clock>=deadline { failAll("连接超时。请检查显示器蓝牙，或暂时断开头玩 App 后刷新");return }
-        guard active != nil,stage=="ready",machineStarted,clock>=readyAt else { return }
+        guard active != nil else { return }
+        if stage != "ready" {
+            let connectionExpired = deadline > 0 && clock >= deadline
+            let transactionExpired = machineStarted && ms >= machine.expires
+            if connectionExpired || transactionExpired {
+                failAll("连接超时。请检查显示器蓝牙，或暂时断开头玩 App 后刷新")
+            }
+            return
+        }
+        guard clock>=readyAt else { return }
+        if !machineStarted { beginProtocol() }
+        guard machineStarted,transactionLock?.isHeld == true else { return }
         guard let p=peripheral,let tx,verified else { failAll("蓝牙连接尚未就绪");return }
         if p.canSendWriteWithoutResponse || ms>=machine.expires {
             var bytes=[UInt8](repeating:0,count:3)
@@ -125,16 +176,16 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         guard let job=active else { return }
         let result=machine.result
         log.record("ble_result",["feature":job.feature.title,"result":String(cString:gm_result_name(&machine)),"before":machine.before,"after":machine.after,"setWrites":machine.set_writes,"queryWrites":machine.query_writes,"osdVisuallyVerified":false,"usbIndependentlyVerified":false])
-        active=nil;machineStarted=false;gm_decoder_reset(&decoder)
+        active=nil;releaseTransaction()
+        idlePolicy.activity(at:clock);readyAt=clock+0.35
         if result>0 { job.completion(.success(Int(machine.after))) }
         else { job.completion(.failure(DisplayError(job.feature == .volume ? "当前固件未响应音量接口" : "\(job.feature.title)未能通过回读确认，请刷新检查"))) }
-        idlePolicy.activity(at:clock);readyAt=clock+0.35
         startNext()
     }
     private func failAll(_ text:String) {
         log.record("ble_error",["message":text,"stage":stage])
-        let jobs=([active].compactMap { $0 })+pending;active=nil;pending.removeAll();machineStarted=false
-        stage="idle";verified=false;central.stopScan();gm_decoder_reset(&decoder)
+        let jobs=([active].compactMap { $0 })+pending;active=nil;pending.removeAll();releaseTransaction()
+        stage="idle";verified=false;central.stopScan()
         onConnection?(false)
         if let p=peripheral,p.state != .disconnected { expectedDisconnect=true;central.cancelPeripheralConnection(p) }
         onState?(text)
@@ -152,7 +203,10 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     func centralManager(_ central:CBCentralManager,didDiscover p:CBPeripheral,advertisementData:[String:Any],rssi:NSNumber) {
         guard stage=="scanning" else { return }
         let name=advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? p.name
-        if let suffix = MonitorIdentity.addressSuffix, name?.uppercased() == "REDMAGIC GM001J" + suffix { connect(p) } // MAC in FFD2 is still mandatory before any command.
+        if matchesName(name) { connect(p) }
+    }
+    private func matchesName(_ name:String?) -> Bool {
+        !addressSuffix.isEmpty && name?.uppercased() == "REDMAGIC GM001J" + addressSuffix
     }
     func centralManager(_ central:CBCentralManager,didConnect p:CBPeripheral) {
         guard p===peripheral,active != nil else { central.cancelPeripheralConnection(p);return }
@@ -173,7 +227,9 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
         let wasActive=active != nil;verified=false;gm_decoder_reset(&decoder)
         onConnection?(false)
         if !wasActive { stage="idle";return }
-        if machineStarted,gm_reconnect(&machine,ms)==1 {
+        // Reconnect the same job under its existing lock. The state machine
+        // resumes verification if a setting was already sent.
+        if machineStarted,transactionLock?.isHeld == true,gm_reconnect(&machine,ms)==1 {
             log.record("ble_reconnect_verification_only",["setWrites":machine.set_writes]);stage="idle";beginConnection()
         } else { failAll("显示器蓝牙已断开，请刷新；已发送的设置不会自动重复发送") }
     }
@@ -205,14 +261,16 @@ final class BluetoothController:NSObject,CBCentralManagerDelegate,CBPeripheralDe
     }
     func peripheral(_ p:CBPeripheral,didUpdateValueFor c:CBCharacteristic,error:Error?) {
         guard p===peripheral,active != nil else { return }
-        guard error==nil,let data=c.value else { failAll("读取蓝牙数据失败");return }
         if c===identity {
-            guard stage=="identity",let expectedMAC,data==expectedMAC else { failAll("蓝牙设备身份不匹配，未发送控制命令");return }
+            guard stage=="identity" else { return }
+            guard error==nil,let data=c.value else { failAll("读取蓝牙数据失败");return }
+            guard let expectedMAC,data==expectedMAC else { failAll("蓝牙设备身份不匹配，未发送控制命令");return }
             verified=true;UserDefaults.standard.set(p.identifier.uuidString,forKey:peripheralKey)
             log.record("ble_identity_verified");stage="subscribing";deadline=clock+5
             if let rx { p.setNotifyValue(true,for:rx) };return
         }
-        guard c===rx,stage=="ready",machineStarted else { return }
+        guard c===rx,stage=="ready",machineStarted,transactionLock?.isHeld == true else { return }
+        guard error==nil,let data=c.value else { failAll("读取蓝牙数据失败");return }
         var frames=[GMFrame](repeating:GMFrame(),count:20)
         let count=data.withUnsafeBytes { raw -> Int32 in
             gm_decode(&decoder,raw.bindMemory(to:UInt8.self).baseAddress,data.count,&frames,frames.count)
