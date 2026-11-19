@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parent
 BUILD=ROOT/'build';BUILD.mkdir(exist_ok=True)
 APP=BUILD/'红魔显示器.app'
 if APP.exists():shutil.rmtree(APP)
-for d in ('Contents/MacOS','Contents/Resources'):(APP/d).mkdir(parents=True,exist_ok=True)
+for d in ('Contents/MacOS','Contents/Resources','Contents/Helpers'):(APP/d).mkdir(parents=True,exist_ok=True)
 def run(*args):subprocess.run([str(a) for a in args],check=True,cwd=ROOT)
 run('clang','-std=c11','-Os','-Wall','-Wextra','-Werror','-mmacosx-version-min=14.0','-c',ROOT/'core/GMProtocol.c','-o',BUILD/'GMProtocol.o')
 objects=[BUILD/'GMProtocol.o']
@@ -15,9 +15,15 @@ for source in [ROOT/'native/DDCNative.m',*(ROOT/'third_party/m1ddc/sources'/s fo
     obj=BUILD/(source.stem+'.o');objects.append(obj)
     run('clang','-fmodules','-Os','-Wall','-Wextra','-Werror','-mmacosx-version-min=14.0',
         '-I',ROOT/'native','-I',ROOT/'third_party/m1ddc/headers','-c',source,'-o',obj)
-run('swiftc','-swift-version','5','-O','-target','arm64-apple-macos14.0','-module-cache-path',BUILD/'module-cache',
-    '-import-objc-header',ROOT/'native/Bridge.h',*sorted((ROOT/'macos').glob('*.swift')),*objects,
-    '-framework','CoreDisplay','-framework','AppKit','-framework','SwiftUI','-framework','CoreBluetooth','-framework','ServiceManagement',
+swift_compiler=['swiftc','-swift-version','5','-O','-target','arm64-apple-macos14.0','-module-cache-path',BUILD/'module-cache',
+               '-import-objc-header',ROOT/'native/Bridge.h']
+ddc_link=[*objects,'-framework','CoreDisplay','-framework','AppKit']
+runner=APP/'Contents/Helpers/InputShortcutRunner'
+run(*swift_compiler,ROOT/'shortcut/main.swift',*(ROOT/'macos'/s for s in ('Features.swift','MonitorIdentity.swift','DDC.swift')),
+    *ddc_link,'-o',runner)
+run('codesign','--force','--sign','-',runner)
+run(*swift_compiler,*sorted((ROOT/'macos').glob('*.swift')),*ddc_link,
+    '-framework','SwiftUI','-framework','CoreBluetooth','-framework','ServiceManagement',
     '-o',APP/'Contents/MacOS/RedMagicDisplay')
 shutil.copy2(ROOT/'LICENSE',APP/'Contents/Resources/LICENSE.txt')
 shutil.copy2(ROOT/'third_party/m1ddc/LICENSE',APP/'Contents/Resources/m1ddc-LICENSE.txt')
@@ -25,7 +31,7 @@ run('swiftc',ROOT/'assets/Icon.swift','-o',BUILD/'IconBuilder')
 run(BUILD/'IconBuilder',BUILD/'AppIcon.iconset')
 run('iconutil','-c','icns',BUILD/'AppIcon.iconset','-o',APP/'Contents/Resources/AppIcon.icns')
 info={'CFBundleName':'红魔显示器','CFBundleDisplayName':'红魔显示器','CFBundleIdentifier':'com.local.redmagic-display',
-      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.5.2','CFBundleVersion':'10',
+      'CFBundleExecutable':'RedMagicDisplay','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.5.3','CFBundleVersion':'11',
       'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True,'NSPrincipalClass':'NSApplication','CFBundleIconFile':'AppIcon',
       'NSBluetoothAlwaysUsageDescription':'通过蓝牙连接你的红魔显示器，切换输入源、读取状态并调节已支持的画面和灯效设置。',
       'NSBluetoothPeripheralUsageDescription':'连接红魔显示器并控制输入源及已支持的设置。'}

@@ -1,6 +1,6 @@
 # RedMagic Monitor Control · 红魔显示器
 
-通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.2 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.1 支持 x64。[Windows 构建与配置](windows/README.md)
+通过 macOS 菜单栏或 Windows 系统托盘控制 REDMAGIC GM001J 4K 标准版显示器，切换 Type-C、DP、HDMI 1、HDMI 2，调整亮度、对比度和 3.5 mm 耳机音量。macOS 0.5.3 支持 Apple Silicon 和 macOS 14 或更高版本，Windows 0.5.1 支持 x64。[Windows 构建与配置](windows/README.md)
 
 ## macOS 快速开始
 
@@ -26,6 +26,12 @@ open "build/红魔显示器.app"
 ```
 
 更换设备配置后，退出并重新打开应用。使用蓝牙时，请开启显示器菜单中的蓝牙，并允许 macOS 的蓝牙权限请求。点击菜单栏的显示器图标打开面板，底部可开启“登录时启动”。长期使用可将构建好的应用移到“应用程序”文件夹。
+
+### 导出切源快捷应用
+
+在任一控制页的输入源区域点「导出快捷方式…」，选择 Type-C、DP、HDMI 1 或 HDMI 2，再选择保存位置。导出后，访达会选中新建的 `.app`。例如，在「快捷指令」中添加「打开 App」操作，选择「切换到DP.app」，运行这条指令即可切到 DP。
+
+每个快捷应用都内置 DDC 控制程序，绑定导出时的显示器序列号和所选接口。菜单栏应用退出后，依然可以双击或由其他应用启动它。与原版 DDC 快捷应用一样，画面切换后显示器菜单可能仍保留上一次的输入源。
 
 ## 两种控制方式
 
@@ -66,6 +72,8 @@ cl /nologo /std:c11 core\GMProtocol.c tests\protocol_test.c /Fe:protocol-test.ex
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined core/GMProtocol.c tests/protocol_test.c -o build/protocol-test
 ./build/protocol-test
 "./build/红魔显示器.app/Contents/MacOS/RedMagicDisplay" --self-test
+swiftc macos/Features.swift macos/InputShortcutExporter.swift tests/input_shortcut_export.swift -o build/test-shortcut-export
+./build/test-shortcut-export
 ```
 
 可用 `--preview /absolute/path.png` 渲染演示界面，加 `--preview-bluetooth` 可预览蓝牙页。退出常驻应用后，`--probe` 会读取 DDC 状态，`--probe-keepalive` 检查两轮蓝牙查询是否复用同一连接。日志保存在 `~/Library/Logs/RedMagicDisplay/`。

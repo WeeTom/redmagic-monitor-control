@@ -85,7 +85,13 @@ int gm_ddc_write(GMDDCSession *s,uint8_t f,uint16_t v) {
     else{data[0]=0x84;data[1]=3;data[2]=f;data[3]=(uint8_t)(v>>8);data[4]=(uint8_t)v;len=6;}
     uint8_t crc=0x6e^0x51;for(int i=0;i<len-1;i++)crc^=data[i];data[len-1]=crc;
     usleep(50000);IOReturn result=send(s,data,(uint32_t)len);
-    if(!result){usleep(50000);result=send(s,data,(uint32_t)len);}
+    if(!result){
+        usleep(50000);
+        IOReturn repeated=send(s,data,(uint32_t)len);
+        // The input change can remove this DDC link before its duplicate packet.
+        // The first send reached the bus; the controller must verify by readback.
+        if(f!=0x60)result=repeated;
+    }
     flock(s->lock,LOCK_UN);return (int)result;
 }
 GMDDCReply gm_ddc_poll(GMDDCSession *s,uint8_t f,int vendor,int wait_ms){

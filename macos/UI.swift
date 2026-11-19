@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 enum PanelLayout {
     static let width: CGFloat = 390
@@ -15,10 +16,19 @@ enum PanelLayout {
     }
 }
 
-private struct SettingsCard<Content: View>: View {
+private struct SettingsCard<Content: View, Accessory: View>: View {
     let title: String
     let symbol: String
-    @ViewBuilder let content: () -> Content
+    let accessory: Accessory
+    let content: Content
+
+    init(title: String, symbol: String, @ViewBuilder accessory: () -> Accessory = { EmptyView() },
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.symbol = symbol
+        self.accessory = accessory()
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -28,9 +38,11 @@ private struct SettingsCard<Content: View>: View {
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
                 Text(title).accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 4)
+                accessory
             }
             .font(.system(size: 12, weight: .semibold))
-            content()
+            content
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,7 +200,16 @@ struct ControlPanel: View {
     }
 
     private var inputCard: some View {
-        SettingsCard(title: isDDC ? "活动输入源" : "显示器菜单输入源", symbol: "cable.connector") {
+        SettingsCard(title: isDDC ? "活动输入源" : "显示器菜单输入源", symbol: "cable.connector", accessory: {
+            Menu("导出快捷方式…") {
+                ForEach(MonitorInput.ports, id: \.ddc) { port in
+                    Button(port.name) { exportShortcut(for: port) }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("选择目标接口，导出可独立运行的 DDC 切源应用")
+        }) {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())], spacing: 6) {
                 ForEach(isDDC ? DDCController.inputChoices : Feature.input.choices, id: \.0) { value, title in
                     let selected = currentInput == value
@@ -230,6 +251,39 @@ struct ControlPanel: View {
                 hint("切换输入时，会尝试通过已授权的蓝牙同步显示器菜单。")
             } else {
                 hint("选择接口会同时切换画面和显示器菜单。")
+            }
+        }
+    }
+
+    @MainActor
+    private func exportShortcut(for port: MonitorInput) {
+        Task { @MainActor in
+            let serial = MonitorIdentity.serial
+            do {
+                guard !serial.isEmpty else {
+                    throw DisplayError("请先绑定显示器的 DDC 序列号（MonitorSerial），然后重新打开红魔显示器。")
+                }
+                let panel = NSSavePanel()
+                panel.title = "导出快捷方式应用"
+                panel.message = "打开此应用会通过 DDC 将显示器切换到 \(port.name)。"
+                panel.prompt = "导出"
+                panel.allowedContentTypes = [.applicationBundle]
+                panel.canCreateDirectories = true
+                panel.isExtensionHidden = false
+                panel.nameFieldStringValue = "切换到\(port.name).app"
+                NSApp.activate()
+                guard await panel.begin() == .OK, let destination = panel.url else { return }
+                let replaceExisting = FileManager.default.fileExists(atPath: destination.path)
+                try await Task.detached(priority: .userInitiated) {
+                    try InputShortcutExporter.export(port: port, serial: serial, to: destination,
+                                                     replaceExisting: replaceExisting)
+                }.value
+                NSWorkspace.shared.activateFileViewerSelecting([destination])
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "无法导出快捷方式"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
             }
         }
     }

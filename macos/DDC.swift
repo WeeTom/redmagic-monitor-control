@@ -13,10 +13,16 @@ protocol DDCTransport:AnyObject {
 }
 final class NativeDDCTransport:DDCTransport {
     static let codes:[String:UInt8] = ["input":0x60,"luminance":0x10,"contrast":0x12,"volume":0x62]
+    private let serial: String
+    private let writeLockTimeout: TimeInterval
     private var session:OpaquePointer?
     private(set) var opens=0
+    init(serial: String = MonitorIdentity.serial, writeLockTimeout: TimeInterval = 0) {
+        self.serial = serial
+        self.writeLockTimeout = writeLockTimeout
+    }
     private func connection()->OpaquePointer? {
-        if session==nil { session=gm_ddc_open_for_serial(MonitorIdentity.serial);if session != nil { opens+=1 } }
+        if session==nil { session=gm_ddc_open_for_serial(serial);if session != nil { opens+=1 } }
         return session
     }
     func read(_ feature:String,attempt:Int)->DDCSample {
@@ -35,7 +41,13 @@ final class NativeDDCTransport:DDCTransport {
     }
     func write(_ feature:String,value:Int)->Int {
         guard let code=Self.codes[feature],DDCController.canWrite(feature,value),let s=connection() else { return -1 }
-        let result=Int(gm_ddc_write(s,code,UInt16(value)))
+        let deadline = ProcessInfo.processInfo.systemUptime + writeLockTimeout
+        var result = Int(gm_ddc_write(s, code, UInt16(value)))
+        // Only -2 guarantees that no bytes were sent: another process holds the lock.
+        while result == -2 && ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+            result = Int(gm_ddc_write(s, code, UInt16(value)))
+        }
         if result != 0 && result != -2 { invalidate() }
         return result
     }
